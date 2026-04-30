@@ -112,13 +112,25 @@ export default function AdminPage() {
 
       const appData = mapExcelToSkyjoData(rawData);
 
+      const { error } = await supabase.from("skyjo_dataset").upsert({
+        id: "active",
+        data: appData,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        console.error("Erreur sauvegarde Supabase :", error);
+        setImportError(
+          "Import lu correctement, mais sauvegarde Supabase impossible. Vérifie les droits admin/RLS."
+        );
+        return;
+      }
+
       console.log("DATA EXCEL BRUTE :", rawData);
       console.log("DATA APP MAPPÉE :", appData);
 
       setRawExcelData(rawData);
       setMappedData(appData);
-
-      localStorage.setItem("skyjo_mapped_data", JSON.stringify(appData));
     } catch (error) {
       console.error(error);
       setImportError(

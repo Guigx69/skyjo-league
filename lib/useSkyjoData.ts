@@ -1,15 +1,34 @@
 import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export function useSkyjoData() {
   const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem("skyjo_mapped_data");
+    const fetchDataset = async () => {
+      const { data: row, error } = await supabase
+        .from("skyjo_dataset")
+        .select("data")
+        .eq("id", "active")
+        .maybeSingle();
 
-    if (stored) {
-      setData(JSON.parse(stored));
-    }
+      if (error) {
+        console.error("Erreur récupération skyjo_dataset :", error);
+        setLoading(false);
+        return;
+      }
+
+      setData(row?.data ?? null);
+      setLoading(false);
+    };
+
+    fetchDataset();
   }, []);
 
-  return data;
+  return {
+    data,
+    loading,
+    hasData: Boolean(data),
+  };
 }

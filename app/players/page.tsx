@@ -10,9 +10,9 @@ export default function PlayersPage() {
     requireAuth: true,
   });
 
-  const data = useSkyjoData();
+  const { data, loading } = useSkyjoData();
 
-  if (checkingAuth || !data) {
+  if (checkingAuth || loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#020617] text-white">
         Chargement des joueurs...

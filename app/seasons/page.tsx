@@ -6,9 +6,9 @@ import { useSkyjoData } from "@/lib/useSkyjoData";
 
 export default function SeasonsPage() {
   const { checkingAuth } = useAuthRedirect({ requireAuth: true });
-  const data = useSkyjoData();
+  const { data, loading } = useSkyjoData();
 
-  if (checkingAuth || !data) {
+  if (checkingAuth || loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#020617] text-white">
         <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-4 text-sm text-zinc-300">
