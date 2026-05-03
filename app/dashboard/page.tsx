@@ -6,6 +6,10 @@ import { supabase } from "@/lib/supabase";
 import AppShell from "@/components/AppShell";
 import { useAuthRedirect } from "@/hooks/useAuthRedirect";
 import { useSkyjoData } from "@/lib/useSkyjoData";
+import ActivityChart from "@/components/charts/ActivityChart";
+import PlayersPerGameChart from "@/components/charts/PlayersPerGameChart";
+import CompetitivePositionChart from "@/components/charts/CompetitivePositionChart";
+import ScoreDistributionChart from "@/components/charts/ScoreDistributionChart";
 
 const quickLinks = [
   {
@@ -57,22 +61,49 @@ export default function DashboardPage() {
     );
   }
 
-  const players = data.players;
-  const games = data.games;
-  const rivalries = data.rivalries;
+  if (!data) {
+    return (
+      <AppShell userEmail={userEmail}>
+        <div className="rounded-[2rem] border border-amber-400/20 bg-amber-400/[0.08] p-6 sm:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-300">
+            Données absentes
+          </p>
+          <h1 className="mt-4 text-2xl font-semibold text-white sm:text-3xl">
+            Aucun fichier Excel n’a encore été importé.
+          </h1>
+          <p className="mt-3 text-sm text-amber-100/80">
+            Va dans la page Admin pour importer les données Skyjo.
+          </p>
+        </div>
+      </AppShell>
+    );
+  }
+
+  const players = data.players ?? [];
+  const games = data.games ?? [];
+  const rivalries = data.rivalries ?? [];
 
   const champion = players[0];
   const hotRivalry = rivalries[0];
 
   const bestScore =
-    players.length > 0
-      ? Math.min(...players.map((player: any) => player.bestScore))
+    games.length > 0 ? Math.min(...games.map((game: any) => game.bestScore)) : 0;
+
+  const worstScore =
+    games.length > 0 ? Math.max(...games.map((game: any) => game.worstScore)) : 0;
+
+  const averageScore =
+    games.length > 0
+      ? Math.round(
+          games.reduce((sum: number, game: any) => sum + game.bestScore, 0) /
+            games.length
+        )
       : 0;
 
   return (
     <AppShell userEmail={userEmail}>
-      <div className="space-y-10">
-        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.09] via-white/[0.04] to-blue-500/[0.08] p-8 shadow-[0_30px_100px_rgba(0,0,0,0.35)]">
+      <div className="space-y-8 sm:space-y-10">
+        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.09] via-white/[0.04] to-blue-500/[0.08] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.35)] sm:p-8">
           <div className="absolute right-[-80px] top-[-80px] h-56 w-56 rounded-full bg-blue-500/20 blur-3xl" />
           <div className="absolute bottom-[-100px] left-[20%] h-48 w-48 rounded-full bg-cyan-400/10 blur-3xl" />
 
@@ -82,7 +113,7 @@ export default function DashboardPage() {
                 Skyjo Seenovate
               </p>
 
-              <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
+              <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl">
                 Vue d’ensemble de la ligue
               </h1>
 
@@ -93,15 +124,11 @@ export default function DashboardPage() {
 
               <div className="mt-8 flex flex-wrap gap-3">
                 <div className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-medium text-zinc-300">
-                  Saison active · V1
-                </div>
-
-                <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-xs font-medium text-emerald-200">
-                  Données Excel importées
+                  Données Supabase live
                 </div>
 
                 {userEmail && (
-                  <div className="rounded-full border border-blue-400/20 bg-blue-400/10 px-4 py-2 text-xs font-medium text-blue-200">
+                  <div className="max-w-full truncate rounded-full border border-blue-400/20 bg-blue-400/10 px-4 py-2 text-xs font-medium text-blue-200">
                     {userEmail}
                   </div>
                 )}
@@ -122,15 +149,57 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-4">
+        <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+          <KpiCard title="Parties" value={games.length} subtitle="Historique actif" tone="blue" />
           <KpiCard title="Joueurs actifs" value={players.length} subtitle="Ligue ouverte" tone="emerald" />
-          <KpiCard title="Parties jouées" value={games.length} subtitle="Historique actif" tone="blue" />
+          <KpiCard title="Score moyen" value={averageScore} subtitle="Score gagnant moyen" tone="violet" />
           <KpiCard title="Meilleur score" value={bestScore} subtitle="Record saison" tone="amber" />
-          <KpiCard title="Rivalités actives" value={rivalries.length} subtitle="Duels suivis" tone="red" />
+          <KpiCard title="Pire score" value={worstScore} subtitle="Score maximum" tone="red" />
+          <KpiCard title="Rivalités" value={rivalries.length} subtitle="Duels suivis" tone="red" />
         </section>
 
+        <ChartSection
+          eyebrow="Activité"
+          title="Activité et tendance des scores"
+          description="Évolution des parties, scores minimum, moyen et maximum."
+        >
+          <ChartViewport minWidth="760px">
+            <ActivityChart games={games} />
+          </ChartViewport>
+        </ChartSection>
+
+        <ChartSection
+          eyebrow="Participation"
+          title="Nombre de joueurs par partie"
+          description="Visualisation du nombre de participants sur chaque partie jouée."
+        >
+          <ChartViewport minWidth="680px">
+            <PlayersPerGameChart games={games} />
+          </ChartViewport>
+        </ChartSection>
+
+        <ChartSection
+          eyebrow="Scores"
+          title="Répartition des scores"
+          description="Distribution des scores par tranche pour identifier les zones les plus fréquentes."
+        >
+          <ChartViewport minWidth="640px">
+            <ScoreDistributionChart games={games} />
+          </ChartViewport>
+        </ChartSection>
+
+        <ChartSection
+          eyebrow="Positionnement"
+          title="Positionnement compétitif des joueurs"
+          description="Lecture croisée entre score moyen, taux de victoire et volume de parties."
+        >
+          <ChartViewport minWidth="980px">
+            <CompetitivePositionChart players={players} />
+          </ChartViewport>
+        </ChartSection>
+
         <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.22)]">
+          <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] sm:p-6">
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">
@@ -143,7 +212,7 @@ export default function DashboardPage() {
 
               <Link
                 href="/leaderboard"
-                className="text-sm font-medium text-blue-300 hover:text-blue-200"
+                className="shrink-0 text-sm font-medium text-blue-300 hover:text-blue-200"
               >
                 Voir tout
               </Link>
@@ -155,26 +224,30 @@ export default function DashboardPage() {
                   key={player.id}
                   className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 p-4"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.06] text-sm font-semibold text-white">
+                  <div className="flex min-w-0 items-center gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-sm font-semibold text-white">
                       #{player.rank}
                     </div>
 
-                    <div>
-                      <p className="font-medium text-white">{player.name}</p>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-white">
+                        {player.name}
+                      </p>
                       <p className="text-xs text-zinc-500">
                         Winrate {player.winRate}%
                       </p>
                     </div>
                   </div>
 
-                  <p className="font-semibold text-blue-300">{player.elo}</p>
+                  <p className="shrink-0 font-semibold text-blue-300">
+                    {player.elo}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.22)]">
+          <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] sm:p-6">
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">
@@ -187,7 +260,7 @@ export default function DashboardPage() {
 
               <Link
                 href="/games"
-                className="text-sm font-medium text-blue-300 hover:text-blue-200"
+                className="shrink-0 text-sm font-medium text-blue-300 hover:text-blue-200"
               >
                 Voir tout
               </Link>
@@ -199,16 +272,20 @@ export default function DashboardPage() {
                   key={game.id}
                   className="rounded-2xl border border-white/10 bg-black/20 p-4"
                 >
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-white">{game.winner}</p>
-                    <p className="text-xs text-zinc-500">{game.date}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="truncate font-medium text-white">
+                      {game.winner}
+                    </p>
+                    <p className="shrink-0 text-xs text-zinc-500">
+                      {game.date}
+                    </p>
                   </div>
 
-                  <div className="mt-3 flex items-center justify-between text-sm">
+                  <div className="mt-3 flex items-center justify-between gap-3 text-sm">
                     <span className="text-zinc-400">
                       {game.players} joueurs
                     </span>
-                    <span className="text-emerald-300">
+                    <span className="text-right text-emerald-300">
                       Score gagnant · {game.bestScore}
                     </span>
                   </div>
@@ -220,7 +297,7 @@ export default function DashboardPage() {
 
         <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
           {hotRivalry && (
-            <div className="rounded-[1.75rem] border border-white/10 bg-gradient-to-br from-red-500/[0.08] to-white/[0.035] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.22)]">
+            <div className="rounded-[1.75rem] border border-white/10 bg-gradient-to-br from-red-500/[0.08] to-white/[0.035] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] sm:p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-300/80">
                 Rivalité chaude
               </p>
@@ -245,7 +322,7 @@ export default function DashboardPage() {
                 />
               </div>
 
-              <div className="mt-3 flex justify-between text-sm text-zinc-300">
+              <div className="mt-3 flex justify-between gap-3 text-sm text-zinc-300">
                 <span>
                   {hotRivalry.playerA} ·{" "}
                   {Math.round((hotRivalry.winsA / hotRivalry.games) * 100)}%
@@ -265,7 +342,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.22)]">
+          <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">
               Accès rapides
             </p>
@@ -297,6 +374,50 @@ export default function DashboardPage() {
   );
 }
 
+function ChartSection({
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[1.75rem] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] sm:p-6">
+      <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">
+        {eyebrow}
+      </p>
+
+      <h2 className="mt-3 text-xl font-semibold text-white sm:text-2xl">
+        {title}
+      </h2>
+
+      <p className="mt-2 text-sm leading-6 text-zinc-400">
+        {description}
+      </p>
+
+      <div className="mt-6">{children}</div>
+    </section>
+  );
+}
+
+function ChartViewport({
+  minWidth,
+  children,
+}: {
+  minWidth: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="-mx-2 overflow-x-auto px-2 pb-2">
+      <div style={{ minWidth }}>{children}</div>
+    </div>
+  );
+}
+
 function KpiCard({
   title,
   value,
@@ -306,19 +427,22 @@ function KpiCard({
   title: string;
   value: string | number;
   subtitle: string;
-  tone: "emerald" | "blue" | "amber" | "red";
+  tone: "emerald" | "blue" | "amber" | "red" | "violet";
 }) {
   const toneClass = {
     emerald: "text-emerald-300",
     blue: "text-blue-300",
     amber: "text-amber-300",
     red: "text-red-300",
+    violet: "text-violet-300",
   };
 
   return (
-    <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.22)]">
+    <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] sm:p-6">
       <p className="text-sm text-zinc-400">{title}</p>
-      <p className="mt-4 text-4xl font-semibold text-white">{value}</p>
+      <p className="mt-4 text-3xl font-semibold text-white sm:text-4xl">
+        {value}
+      </p>
       <p className={`mt-3 text-xs ${toneClass[tone]}`}>{subtitle}</p>
     </div>
   );
