@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type RefObject, useEffect } from "react";
 import {
   CartesianGrid,
   ReferenceArea,
@@ -36,6 +36,9 @@ export default function CompetitivePositionChart({
   const [search, setSearch] = useState("");
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
+  const selectorRef = useRef<HTMLDivElement | null>(null);
+
+  useCloseOnOutsideClick(selectorRef, () => setIsSelectorOpen(false));
 
   const chartData = useMemo(
     () =>
@@ -105,225 +108,236 @@ export default function CompetitivePositionChart({
   const selectedPlayerLabel = selectedPlayer?.name ?? "Tous les joueurs";
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-5 rounded-2xl border border-white/10 bg-black/20 p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
-            Analyse compétitive
-          </p>
+    <div className="w-full max-w-full overflow-hidden space-y-5">
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+              Analyse compétitive
+            </p>
 
-          <p className="mt-1 text-sm leading-6 text-zinc-400">
-            À gauche, les joueurs avec un score moyen plus bas. En haut, les
-            joueurs avec un meilleur taux de victoire.
-          </p>
-        </div>
+            <p className="mt-1 text-sm leading-6 text-zinc-400">
+              À gauche, les joueurs avec un score moyen plus bas. En haut, les
+              joueurs avec un meilleur taux de victoire.
+            </p>
+          </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative w-full sm:w-[340px]">
-            <button
-              type="button"
-              onClick={() => setIsSelectorOpen((current) => !current)}
-              className="flex w-full items-center justify-between rounded-2xl border border-blue-400/50 bg-[#020617] px-4 py-3 text-left text-sm font-medium text-white outline-none transition hover:border-blue-300/70 focus:border-blue-300"
-            >
-              <span className="truncate">{selectedPlayerLabel}</span>
-              <span className="ml-4 shrink-0 text-xs text-zinc-500">
-                {isSelectorOpen ? "▲" : "▼"}
-              </span>
-            </button>
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+            <div ref={selectorRef} className="relative w-full sm:w-[300px]">
+              <button
+                type="button"
+                onClick={() => setIsSelectorOpen((current) => !current)}
+                className="flex w-full items-center justify-between rounded-2xl border border-blue-400/50 bg-[#020617] px-4 py-3 text-left text-sm font-medium text-white outline-none transition hover:border-blue-300/70 focus:border-blue-300"
+              >
+                <span className="truncate">{selectedPlayerLabel}</span>
+                <span className="ml-4 shrink-0 text-xs text-zinc-500">
+                  {isSelectorOpen ? "▲" : "▼"}
+                </span>
+              </button>
 
-            {isSelectorOpen && (
-              <div className="absolute right-0 z-50 mt-2 w-full overflow-hidden rounded-2xl border border-white/10 bg-[#020617] shadow-[0_24px_70px_rgba(0,0,0,0.65)]">
-                <div className="border-b border-white/10 p-3">
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Rechercher un joueur..."
-                    autoFocus
-                    className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 hover:border-blue-400/40 focus:border-blue-400/60"
-                  />
-                </div>
+              {isSelectorOpen && (
+                <div className="absolute right-0 z-50 mt-2 w-full overflow-hidden rounded-2xl border border-white/10 bg-[#020617] shadow-[0_24px_70px_rgba(0,0,0,0.65)]">
+                  <div className="border-b border-white/10 p-3">
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Rechercher un joueur..."
+                      autoFocus
+                      className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 hover:border-blue-400/40 focus:border-blue-400/60"
+                    />
+                  </div>
 
-                <div className="max-h-64 overflow-y-auto p-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedPlayerId("all");
-                      setSearch("");
-                      setIsSelectorOpen(false);
-                    }}
-                    className={`w-full rounded-xl px-3 py-2 text-left text-sm transition ${
-                      selectedPlayerId === "all"
-                        ? "bg-blue-400/10 text-blue-200"
-                        : "text-zinc-300 hover:bg-white/[0.06] hover:text-white"
-                    }`}
-                  >
-                    Tous les joueurs
-                  </button>
-
-                  {filteredPlayers.map((player) => (
+                  <div className="max-h-64 overflow-y-auto p-2">
                     <button
                       type="button"
-                      key={player.id}
                       onClick={() => {
-                        setSelectedPlayerId(player.id);
+                        setSelectedPlayerId("all");
                         setSearch("");
                         setIsSelectorOpen(false);
                       }}
-                      className={`mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition ${
-                        selectedPlayerId === player.id
+                      className={`w-full rounded-xl px-3 py-2 text-left text-sm transition ${
+                        selectedPlayerId === "all"
                           ? "bg-blue-400/10 text-blue-200"
                           : "text-zinc-300 hover:bg-white/[0.06] hover:text-white"
                       }`}
                     >
-                      <span className="truncate">{player.name}</span>
-                      <span className="ml-3 shrink-0 text-xs text-zinc-600">
-                        #{player.rank}
-                      </span>
+                      Tous les joueurs
                     </button>
-                  ))}
 
-                  {filteredPlayers.length === 0 && (
-                    <div className="px-3 py-6 text-center text-sm text-zinc-500">
-                      Aucun joueur trouvé.
-                    </div>
-                  )}
+                    {filteredPlayers.map((player) => (
+                      <button
+                        type="button"
+                        key={player.id}
+                        onClick={() => {
+                          setSelectedPlayerId(player.id);
+                          setSearch("");
+                          setIsSelectorOpen(false);
+                        }}
+                        className={`mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition ${
+                          selectedPlayerId === player.id
+                            ? "bg-blue-400/10 text-blue-200"
+                            : "text-zinc-300 hover:bg-white/[0.06] hover:text-white"
+                        }`}
+                      >
+                        <span className="truncate">{player.name}</span>
+                        <span className="ml-3 shrink-0 text-xs text-zinc-600">
+                          #{player.rank}
+                        </span>
+                      </button>
+                    ))}
+
+                    {filteredPlayers.length === 0 && (
+                      <div className="px-3 py-6 text-center text-sm text-zinc-500">
+                        Aucun joueur trouvé.
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          <button
-            type="button"
-            onClick={() => setShowAllLabels((current) => !current)}
-            className={`shrink-0 rounded-2xl border px-4 py-3 text-sm font-medium transition ${
-              showAllLabels
-                ? "border-blue-400/50 bg-blue-400/10 text-blue-200"
-                : "border-white/10 bg-[#020617] text-zinc-400 hover:border-blue-400/40 hover:text-white"
-            }`}
-          >
-            {showAllLabels ? "Masquer noms" : "Comparer noms"}
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowAllLabels((current) => !current)}
+              className={`shrink-0 rounded-2xl border px-4 py-3 text-sm font-medium transition ${
+                showAllLabels
+                  ? "border-blue-400/50 bg-blue-400/10 text-blue-200"
+                  : "border-white/10 bg-[#020617] text-zinc-400 hover:border-blue-400/40 hover:text-white"
+              }`}
+            >
+              {showAllLabels ? "Masquer noms" : "Comparer noms"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          <LegendBadge tone="emerald" label="Performance élevée" />
+          <LegendBadge tone="amber" label="Victoire efficace" />
+          <LegendBadge tone="blue" label="Stabilité" />
+          <LegendBadge tone="zinc" label="Marge de progression" />
         </div>
       </div>
 
-      <div className="h-[500px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 34, right: 28, bottom: 34, left: 8 }}>
-            <CartesianGrid stroke="rgba(255,255,255,0.06)" />
+      <div className="w-full max-w-full overflow-hidden rounded-2xl border border-white/10 bg-black/10 p-3">
+        <div className="h-[440px] w-full min-w-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <ScatterChart margin={{ top: 26, right: 22, bottom: 44, left: 4 }}>
+              <CartesianGrid stroke="rgba(255,255,255,0.06)" />
 
-            <ReferenceArea
-              x1={xMin}
-              x2={scoreThreshold}
-              y1={winRateThreshold}
-              y2={yMax}
-              fill="#22c55e"
-              fillOpacity={0.085}
-            />
-            <ReferenceArea
-              x1={scoreThreshold}
-              x2={xMax}
-              y1={winRateThreshold}
-              y2={yMax}
-              fill="#f59e0b"
-              fillOpacity={0.07}
-            />
-            <ReferenceArea
-              x1={xMin}
-              x2={scoreThreshold}
-              y1={yMin}
-              y2={winRateThreshold}
-              fill="#38bdf8"
-              fillOpacity={0.06}
-            />
-            <ReferenceArea
-              x1={scoreThreshold}
-              x2={xMax}
-              y1={yMin}
-              y2={winRateThreshold}
-              fill="#a1a1aa"
-              fillOpacity={0.05}
-            />
+              <ReferenceArea
+                x1={xMin}
+                x2={scoreThreshold}
+                y1={winRateThreshold}
+                y2={yMax}
+                fill="#22c55e"
+                fillOpacity={0.085}
+              />
+              <ReferenceArea
+                x1={scoreThreshold}
+                x2={xMax}
+                y1={winRateThreshold}
+                y2={yMax}
+                fill="#f59e0b"
+                fillOpacity={0.07}
+              />
+              <ReferenceArea
+                x1={xMin}
+                x2={scoreThreshold}
+                y1={yMin}
+                y2={winRateThreshold}
+                fill="#38bdf8"
+                fillOpacity={0.06}
+              />
+              <ReferenceArea
+                x1={scoreThreshold}
+                x2={xMax}
+                y1={yMin}
+                y2={winRateThreshold}
+                fill="#a1a1aa"
+                fillOpacity={0.05}
+              />
 
-            <ReferenceLine
-              x={scoreThreshold}
-              stroke="rgba(255,255,255,0.2)"
-              strokeDasharray="4 4"
-            />
-            <ReferenceLine
-              y={winRateThreshold}
-              stroke="rgba(255,255,255,0.2)"
-              strokeDasharray="4 4"
-            />
+              <ReferenceLine
+                x={scoreThreshold}
+                stroke="rgba(255,255,255,0.22)"
+                strokeDasharray="4 4"
+              />
+              <ReferenceLine
+                y={winRateThreshold}
+                stroke="rgba(255,255,255,0.22)"
+                strokeDasharray="4 4"
+              />
 
-            <XAxis
-              type="number"
-              dataKey="averageScore"
-              domain={[xMin, xMax]}
-              stroke="#a1a1aa"
-              tick={{ fontSize: 12 }}
-              tickMargin={10}
-              allowDecimals={false}
-              label={{
-                value: "Score moyen · plus bas = meilleur",
-                position: "insideBottom",
-                offset: -18,
-                fill: "#a1a1aa",
-                fontSize: 12,
-              }}
-            />
+              <XAxis
+                type="number"
+                dataKey="averageScore"
+                domain={[xMin, xMax]}
+                stroke="#a1a1aa"
+                tick={{ fontSize: 11 }}
+                tickMargin={8}
+                allowDecimals={false}
+                label={{
+                  value: "Score moyen · plus bas = meilleur",
+                  position: "insideBottom",
+                  offset: -28,
+                  fill: "#a1a1aa",
+                  fontSize: 11,
+                }}
+              />
 
-            <YAxis
-              type="number"
-              dataKey="winRate"
-              domain={[0, 100]}
-              stroke="#a1a1aa"
-              tick={{ fontSize: 12 }}
-              tickMargin={10}
-              tickFormatter={(value) => `${value}%`}
-              label={{
-                value: "Taux de victoire",
-                angle: -90,
-                position: "insideLeft",
-                fill: "#a1a1aa",
-                fontSize: 12,
-              }}
-            />
+              <YAxis
+                type="number"
+                dataKey="winRate"
+                domain={[0, 100]}
+                stroke="#a1a1aa"
+                tick={{ fontSize: 11 }}
+                tickMargin={8}
+                tickFormatter={(value) => `${value}%`}
+                label={{
+                  value: "Taux de victoire",
+                  angle: -90,
+                  position: "insideLeft",
+                  fill: "#a1a1aa",
+                  fontSize: 11,
+                }}
+              />
 
-            <ZAxis
-              type="number"
-              dataKey="games"
-              range={[180, 1150]}
-              domain={[0, maxGames]}
-            />
+              <ZAxis
+                type="number"
+                dataKey="games"
+                range={[120, 780]}
+                domain={[0, maxGames]}
+              />
 
-            <Tooltip
-              cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1 }}
-              content={
-                <CompetitiveTooltip
-                  scoreThreshold={scoreThreshold}
-                  winRateThreshold={winRateThreshold}
-                />
-              }
-            />
+              <Tooltip
+                cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1 }}
+                content={
+                  <CompetitiveTooltip
+                    scoreThreshold={scoreThreshold}
+                    winRateThreshold={winRateThreshold}
+                  />
+                }
+              />
 
-            <Scatter
-              data={chartData}
-              onClick={(point: any) => {
-                setSelectedPlayerId(String(point.id));
-                setSearch("");
-              }}
-              shape={
-                <Bubble
-                  selectedPlayerId={selectedPlayerId}
-                  showAllLabels={showAllLabels}
-                />
-              }
-            />
-          </ScatterChart>
-        </ResponsiveContainer>
+              <Scatter
+                data={chartData}
+                onClick={(point: any) => {
+                  setSelectedPlayerId(String(point.id));
+                  setSearch("");
+                }}
+                shape={
+                  <Bubble
+                    selectedPlayerId={selectedPlayerId}
+                    showAllLabels={showAllLabels}
+                  />
+                }
+              />
+            </ScatterChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <QuadrantCard
           title="Performance élevée"
           description="Score moyen bas et taux de victoire élevé."
@@ -356,20 +370,13 @@ function Bubble(props: any) {
   const isSelected = selectedPlayerId === payload.id;
   const isDimmed = hasSelection && !isSelected;
   const radius = getBubbleRadius(payload.games);
-
   const shouldShowLabel = isSelected || showAllLabels;
 
   return (
     <g>
       {isSelected && (
         <>
-          <circle
-            cx={cx}
-            cy={cy}
-            r={radius + 10}
-            fill={fill}
-            fillOpacity={0.08}
-          />
+          <circle cx={cx} cy={cy} r={radius + 10} fill={fill} fillOpacity={0.08} />
           <circle
             cx={cx}
             cy={cy}
@@ -387,7 +394,7 @@ function Bubble(props: any) {
         cy={cy}
         r={radius}
         fill={fill}
-        fillOpacity={isDimmed ? 0.12 : showAllLabels ? 0.72 : 0.86}
+        fillOpacity={isDimmed ? 0.12 : showAllLabels ? 0.7 : 0.86}
         stroke="rgba(255,255,255,0.38)"
         strokeOpacity={isDimmed ? 0.14 : 1}
         strokeWidth={isSelected ? 2 : 1}
@@ -397,10 +404,10 @@ function Bubble(props: any) {
       {shouldShowLabel && (
         <text
           x={cx}
-          y={cy + radius + 14}
+          y={cy + radius + 13}
           textAnchor="middle"
           fill={isDimmed ? "#71717a" : isSelected ? "#ffffff" : "#d4d4d8"}
-          fontSize={showAllLabels ? 10 : 11}
+          fontSize={10}
           fontWeight={isSelected ? 700 : 500}
           pointerEvents="none"
         >
@@ -447,17 +454,33 @@ function CompetitiveTooltip({
   );
 }
 
-function TooltipRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
+function TooltipRow({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex items-center justify-between gap-6 text-sm">
       <span className="text-zinc-400">{label}</span>
       <span className="font-semibold tabular-nums text-white">{value}</span>
+    </div>
+  );
+}
+
+function LegendBadge({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "emerald" | "amber" | "blue" | "zinc";
+}) {
+  const toneClass = {
+    emerald: "bg-emerald-400",
+    amber: "bg-amber-400",
+    blue: "bg-blue-400",
+    zinc: "bg-zinc-400",
+  };
+
+  return (
+    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5">
+      <span className={`h-2.5 w-2.5 rounded-full ${toneClass[tone]}`} />
+      <span className="text-xs font-medium text-zinc-300">{label}</span>
     </div>
   );
 }
@@ -487,11 +510,11 @@ function QuadrantCard({
 }
 
 function getBubbleRadius(games: number) {
-  if (games >= 40) return 24;
-  if (games >= 25) return 21;
-  if (games >= 15) return 18;
-  if (games >= 8) return 15;
-  return 12;
+  if (games >= 40) return 20;
+  if (games >= 25) return 18;
+  if (games >= 15) return 16;
+  if (games >= 8) return 13;
+  return 10;
 }
 
 function median(values: number[]) {
@@ -538,4 +561,29 @@ function getSkyjoProfile(
     label: "Marge de progression",
     className: "text-zinc-300",
   };
+}
+
+function useCloseOnOutsideClick(
+  ref: RefObject<HTMLElement | null>,
+  onClose: () => void
+) {
+  useEffect(() => {
+    const handleClick = (event: MouseEvent | TouchEvent) => {
+      const element = ref.current;
+
+      if (!element) return;
+
+      if (!element.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("touchstart", handleClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("touchstart", handleClick);
+    };
+  }, [ref, onClose]);
 }

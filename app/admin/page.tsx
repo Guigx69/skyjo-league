@@ -39,6 +39,12 @@ type ExcelRawData = {
   resultats: Record<string, unknown>[];
 };
 
+type ImportMetadata = {
+  fileName: string | null;
+  updatedAt: string | null;
+  updatedByEmail: string | null;
+};
+
 export default function AdminPage() {
   const { checkingAuth } = useAuthRedirect({ requireAuth: true });
 
@@ -49,6 +55,14 @@ export default function AdminPage() {
   const [rawExcelData, setRawExcelData] = useState<ExcelRawData | null>(null);
   const [mappedData, setMappedData] = useState<MappedSkyjoData | null>(null);
   const [importError, setImportError] = useState("");
+  const [importSuccess, setImportSuccess] = useState("");
+  const [importing, setImporting] = useState(false);
+
+  const [importMetadata, setImportMetadata] = useState<ImportMetadata>({
+    fileName: null,
+    updatedAt: null,
+    updatedByEmail: null,
+  });
 
   useEffect(() => {
     const checkAdminRole = async () => {
@@ -78,6 +92,7 @@ export default function AdminPage() {
 
       setIsAdmin(true);
       setCheckingRole(false);
+      await fetchImportMetadata();
     };
 
     if (!checkingAuth) {
@@ -85,10 +100,39 @@ export default function AdminPage() {
     }
   }, [checkingAuth]);
 
+  const fetchImportMetadata = async () => {
+    const { data, error } = await supabase
+      .from("skyjo_dataset")
+      .select("data, updated_at, file_name, updated_by_email")
+      .eq("id", "active")
+      .maybeSingle();
+
+    if (error) {
+      console.error("Erreur lecture metadata import :", error);
+      return;
+    }
+
+    if (!data) {
+      return;
+    }
+
+    setImportMetadata({
+      fileName: data.file_name ?? null,
+      updatedAt: data.updated_at ?? null,
+      updatedByEmail: data.updated_by_email ?? null,
+    });
+
+    if (data.data) {
+      setMappedData(data.data as MappedSkyjoData);
+    }
+  };
+
   const handleExcelUpload = async (file: File) => {
     setImportError("");
+    setImportSuccess("");
     setRawExcelData(null);
     setMappedData(null);
+    setImporting(true);
 
     try {
       const buffer = await file.arrayBuffer();
@@ -111,31 +155,41 @@ export default function AdminPage() {
       };
 
       const appData = mapExcelToSkyjoData(rawData);
+      const updatedAt = new Date().toISOString();
 
       const { error } = await supabase.from("skyjo_dataset").upsert({
         id: "active",
         data: appData,
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt,
+        file_name: file.name,
+        updated_by_email: userEmail ?? null,
       });
 
       if (error) {
         console.error("Erreur sauvegarde Supabase :", error);
         setImportError(
-          "Import lu correctement, mais sauvegarde Supabase impossible. Vérifie les droits admin/RLS."
+          "Import lu correctement, mais sauvegarde Supabase impossible. Vérifie les droits admin/RLS et les colonnes file_name / updated_by_email."
         );
         return;
       }
 
-      console.log("DATA EXCEL BRUTE :", rawData);
-      console.log("DATA APP MAPPÉE :", appData);
-
       setRawExcelData(rawData);
       setMappedData(appData);
+
+      setImportMetadata({
+        fileName: file.name,
+        updatedAt,
+        updatedByEmail: userEmail ?? null,
+      });
+
+      setImportSuccess("Fichier chargé et sauvegardé avec succès.");
     } catch (error) {
       console.error(error);
       setImportError(
         "Import impossible. Vérifie que le fichier contient bien T_JOUEURS, T_PARTIES et T_RESULTATS."
       );
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -210,32 +264,78 @@ export default function AdminPage() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-4">
-          <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-6">
-            <p className="text-sm text-zinc-400">Source data</p>
-            <p className="mt-3 text-2xl font-semibold text-white">
-              SharePoint Excel
-            </p>
+          <AdminKpi
+            label="Source data"
+            value="SharePoint Excel"
+            tone="blue"
+          />
+
+          <AdminKpi
+            label="Mode actuel"
+            value={mappedData ? "Excel chargé" : "Aucune donnée"}
+            tone={mappedData ? "emerald" : "amber"}
+          />
+
+          <AdminKpi
+            label="Joueurs app"
+            value={mappedData ? mappedData.players.length : "—"}
+            tone="violet"
+          />
+
+          <AdminKpi
+            label="Statut import"
+            value={mappedData ? "Mapping OK" : "À importer"}
+            tone={mappedData ? "emerald" : "amber"}
+          />
+        </section>
+
+        <section className="rounded-[1.75rem] border border-white/10 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.22)]">
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">
+                État du dataset
+              </p>
+
+              <h2 className="mt-3 text-2xl font-semibold text-white">
+                Dernier fichier chargé
+              </h2>
+
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
+                Cette section permet de vérifier rapidement si un fichier a déjà
+                été chargé, quand, et par quel compte.
+              </p>
+            </div>
+
+            <span
+              className={`rounded-full border px-4 py-2 text-xs font-medium ${
+                importMetadata.updatedAt
+                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+                  : "border-amber-400/20 bg-amber-400/10 text-amber-200"
+              }`}
+            >
+              {importMetadata.updatedAt ? "Dataset actif" : "Aucun import"}
+            </span>
           </div>
 
-          <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-6">
-            <p className="text-sm text-zinc-400">Mode actuel</p>
-            <p className="mt-3 text-2xl font-semibold text-white">
-              {mappedData ? "Excel chargé" : "Mock"}
-            </p>
-          </div>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <MetadataCard
+              label="Fichier"
+              value={importMetadata.fileName ?? "Aucun fichier chargé"}
+            />
 
-          <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-6">
-            <p className="text-sm text-zinc-400">Joueurs app</p>
-            <p className="mt-3 text-2xl font-semibold text-white">
-              {mappedData ? mappedData.players.length : "—"}
-            </p>
-          </div>
+            <MetadataCard
+              label="Chargé le"
+              value={
+                importMetadata.updatedAt
+                  ? formatDateTime(importMetadata.updatedAt)
+                  : "—"
+              }
+            />
 
-          <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-6">
-            <p className="text-sm text-zinc-400">Statut import</p>
-            <p className="mt-3 text-2xl font-semibold text-white">
-              {mappedData ? "Mapping OK" : "À importer"}
-            </p>
+            <MetadataCard
+              label="Chargé par"
+              value={importMetadata.updatedByEmail ?? "—"}
+            />
           </div>
         </section>
 
@@ -250,12 +350,12 @@ export default function AdminPage() {
 
           <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
             Importe le fichier Excel exporté depuis SharePoint. Chaque nouvel
-            import remplace les données précédemment chargées dans le navigateur.
+            import remplace les données précédemment sauvegardées dans Supabase.
           </p>
 
           <label className="mt-6 flex cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-white/15 bg-black/20 px-6 py-10 text-center transition hover:bg-white/[0.04]">
             <span className="text-sm font-medium text-white">
-              Sélectionner un fichier .xlsx
+              {importing ? "Import en cours..." : "Sélectionner un fichier .xlsx"}
             </span>
             <span className="mt-2 text-xs text-zinc-500">
               Tables attendues : T_JOUEURS, T_PARTIES, T_RESULTATS
@@ -265,12 +365,15 @@ export default function AdminPage() {
               type="file"
               accept=".xlsx"
               className="hidden"
+              disabled={importing}
               onChange={(event) => {
                 const file = event.target.files?.[0];
 
                 if (file) {
                   handleExcelUpload(file);
                 }
+
+                event.target.value = "";
               }}
             />
           </label>
@@ -278,6 +381,12 @@ export default function AdminPage() {
           {importError && (
             <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
               {importError}
+            </div>
+          )}
+
+          {importSuccess && (
+            <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+              {importSuccess}
             </div>
           )}
 
@@ -375,4 +484,57 @@ export default function AdminPage() {
       </div>
     </AppShell>
   );
+}
+
+function AdminKpi({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  tone: "blue" | "emerald" | "amber" | "violet";
+}) {
+  const toneClass = {
+    blue: "text-blue-300",
+    emerald: "text-emerald-300",
+    amber: "text-amber-300",
+    violet: "text-violet-300",
+  };
+
+  return (
+    <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-6">
+      <p className="text-sm text-zinc-400">{label}</p>
+      <p className={`mt-3 text-2xl font-semibold ${toneClass[tone]}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function MetadataCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+        {label}
+      </p>
+      <p className="mt-3 truncate text-sm font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

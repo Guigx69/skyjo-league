@@ -58,80 +58,98 @@ export default function ActivityChart({ games }: { games: any[] }) {
     .sort((a, b) => a.dateTimestamp - b.dateTimestamp);
 
   return (
-    <div className="h-[340px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={chartData}>
-          <CartesianGrid stroke="rgba(255,255,255,0.06)" />
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <ChartLegend color="bg-blue-400" label="Parties jouées" />
+        <ChartLegend color="bg-violet-500" label="Score maximum" />
+        <ChartLegend color="bg-emerald-400" label="Score moyen" />
+        <ChartLegend color="bg-blue-600" label="Score minimum" />
+      </div>
 
-          <XAxis
-            dataKey="date"
-            stroke="#a1a1aa"
-            tick={{ fontSize: 12 }}
-            tickMargin={10}
-          />
+      <div className="h-[340px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData}>
+            <CartesianGrid stroke="rgba(255,255,255,0.06)" />
 
-          <YAxis
-            yAxisId="left"
-            stroke="#a1a1aa"
-            tick={{ fontSize: 12 }}
-            allowDecimals={false}
-          />
+            <XAxis
+              dataKey="date"
+              stroke="#a1a1aa"
+              tick={{ fontSize: 12 }}
+              tickMargin={10}
+            />
 
-          <YAxis
-            yAxisId="right"
-            orientation="right"
-            stroke="#a1a1aa"
-            tick={{ fontSize: 12 }}
-          />
+            <YAxis
+              yAxisId="left"
+              stroke="#a1a1aa"
+              tick={{ fontSize: 12 }}
+              allowDecimals={false}
+            />
 
-          <Tooltip
-            cursor={{
-              stroke: "rgba(255,255,255,0.28)",
-              strokeWidth: 1,
-            }}
-            content={<ActivityTooltip />}
-          />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              stroke="#a1a1aa"
+              tick={{ fontSize: 12 }}
+            />
 
-          <Bar
-            yAxisId="left"
-            dataKey="games"
-            name="Nombre de parties"
-            fill="#60a5fa"
-            radius={[10, 10, 0, 0]}
-            opacity={0.75}
-          />
+            <Tooltip
+              cursor={{
+                stroke: "rgba(255,255,255,0.28)",
+                strokeWidth: 1,
+              }}
+              content={<ActivityTooltip />}
+            />
 
-          <Line
-            yAxisId="right"
-            type="monotone"
-            dataKey="minScore"
-            name="Score minimum"
-            stroke="#2563eb"
-            strokeWidth={2}
-            dot={{ r: 4 }}
-          />
+            <Bar
+              yAxisId="left"
+              dataKey="games"
+              name="Parties jouées"
+              fill="#60a5fa"
+              radius={[10, 10, 0, 0]}
+              opacity={0.75}
+            />
 
-          <Line
-            yAxisId="right"
-            type="monotone"
-            dataKey="avgScore"
-            name="Score moyen"
-            stroke="#22c55e"
-            strokeWidth={2}
-            dot={{ r: 4 }}
-          />
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="minScore"
+              name="Score minimum"
+              stroke="#2563eb"
+              strokeWidth={2}
+              dot={{ r: 4 }}
+            />
 
-          <Line
-            yAxisId="right"
-            type="monotone"
-            dataKey="maxScore"
-            name="Score maximum"
-            stroke="#7c3aed"
-            strokeWidth={2}
-            dot={{ r: 4 }}
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="avgScore"
+              name="Score moyen"
+              stroke="#22c55e"
+              strokeWidth={2}
+              dot={{ r: 4 }}
+            />
+
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="maxScore"
+              name="Score maximum"
+              stroke="#7c3aed"
+              strokeWidth={2}
+              dot={{ r: 4 }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function ChartLegend({ color, label }: { color: string; label: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5">
+      <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
+      <span className="text-xs font-medium text-zinc-300">{label}</span>
     </div>
   );
 }
@@ -160,7 +178,7 @@ function ActivityTooltip({ active, payload }: any) {
         <TooltipRow
           label="Parties jouées"
           value={item.games}
-          valueClassName="text-zinc-100"
+          valueClassName="text-blue-300"
         />
 
         <TooltipRow
@@ -170,15 +188,15 @@ function ActivityTooltip({ active, payload }: any) {
         />
 
         <TooltipRow
-          label="Score minimum"
-          value={item.minScore}
-          valueClassName="text-blue-300"
-        />
-
-        <TooltipRow
           label="Score moyen"
           value={item.avgScore}
           valueClassName="text-emerald-300"
+        />
+
+        <TooltipRow
+          label="Score minimum"
+          value={item.minScore}
+          valueClassName="text-blue-300"
         />
       </div>
     </div>
