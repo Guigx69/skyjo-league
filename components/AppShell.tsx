@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -12,6 +12,7 @@ const navItems = [
   { href: "/players", label: "Joueurs" },
   { href: "/games", label: "Parties" },
   { href: "/rivalries", label: "Rivalités" },
+  { href: "/adversity", label: "Adversité" },
   { href: "/seasons", label: "Saisons" },
   { href: "/admin", label: "Admin" },
 ];
@@ -25,11 +26,44 @@ export default function AppShell({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [resolvedUserEmail, setResolvedUserEmail] = useState(userEmail);
+
+  useEffect(() => {
+    if (userEmail) {
+      setResolvedUserEmail(userEmail);
+      return;
+    }
+
+    const loadUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setResolvedUserEmail(data.user?.email ?? "Utilisateur Seenovate");
+    };
+
+    loadUser();
+  }, [userEmail]);
+
+  const displayUser = resolvedUserEmail ?? "Utilisateur Seenovate";
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = "/login";
   };
+
+  const UserBlock = () => (
+    <>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+        <p className="text-xs text-zinc-500">Connecté en tant que</p>
+        <p className="mt-1 truncate text-sm text-zinc-300">{displayUser}</p>
+      </div>
+
+      <button
+        onClick={handleLogout}
+        className="mt-3 w-full rounded-2xl border border-white/10 px-4 py-3 text-sm font-medium text-zinc-300 transition hover:bg-white hover:text-slate-950"
+      >
+        Se déconnecter
+      </button>
+    </>
+  );
 
   const Navigation = ({ onNavigate }: { onNavigate?: () => void }) => (
     <nav className="mt-10 space-y-2">
@@ -112,19 +146,7 @@ export default function AppShell({
         <Navigation onNavigate={() => setMobileOpen(false)} />
 
         <div className="absolute bottom-6 left-6 right-6">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <p className="text-xs text-zinc-500">Connecté en tant que</p>
-            <p className="mt-1 truncate text-sm text-zinc-300">
-              {userEmail ?? "Utilisateur Seenovate"}
-            </p>
-          </div>
-
-          <button
-            onClick={handleLogout}
-            className="mt-3 w-full rounded-2xl border border-white/10 px-4 py-3 text-sm font-medium text-zinc-300 transition hover:bg-white hover:text-slate-950"
-          >
-            Se déconnecter
-          </button>
+          <UserBlock />
         </div>
       </aside>
 
@@ -142,19 +164,7 @@ export default function AppShell({
         <Navigation />
 
         <div className="absolute bottom-6 left-6 right-6">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <p className="text-xs text-zinc-500">Connecté en tant que</p>
-            <p className="mt-1 truncate text-sm text-zinc-300">
-              {userEmail ?? "Utilisateur Seenovate"}
-            </p>
-          </div>
-
-          <button
-            onClick={handleLogout}
-            className="mt-3 w-full rounded-2xl border border-white/10 px-4 py-3 text-sm font-medium text-zinc-300 transition hover:bg-white hover:text-slate-950"
-          >
-            Se déconnecter
-          </button>
+          <UserBlock />
         </div>
       </aside>
 

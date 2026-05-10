@@ -75,13 +75,16 @@ function normalizeText(value: unknown) {
 }
 
 function toNumber(value: unknown) {
-  const numberValue = Number(value);
+  const numberValue =
+    typeof value === "string" ? Number(value.replace(",", ".")) : Number(value);
+
   return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
 function getNumericId(value: unknown) {
   const text = normalizeText(value);
   const digits = text.replace(/\D/g, "");
+
   return digits ? Number(digits) : 0;
 }
 
@@ -92,7 +95,7 @@ function parseExcelDate(value: unknown) {
 
   if (typeof value === "number") {
     const excelEpoch = new Date(Date.UTC(1899, 11, 30));
-    return new Date(excelEpoch.getTime() + value * 86400000);
+    return new Date(excelEpoch.getTime() + value * 86_400_000);
   }
 
   if (typeof value === "string") {
@@ -112,11 +115,13 @@ function parseExcelDate(value: unknown) {
 
 function formatDate(date: Date | null) {
   if (!date) return "Date inconnue";
+
   return new Intl.DateTimeFormat("fr-FR").format(date);
 }
 
 function toIsoDate(date: Date | null) {
   if (!date) return "";
+
   return date.toISOString().slice(0, 10);
 }
 
@@ -153,7 +158,6 @@ function getSeasonFromDate(date: Date | null) {
 
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth();
-
   const firstRealSeasonStart = new Date(Date.UTC(2026, 3, 1));
 
   if (date < firstRealSeasonStart) {
@@ -187,6 +191,7 @@ function getForm(results: RawRow[]) {
   const losses = recent.length - wins;
 
   if (wins >= losses) return `${wins}V`;
+
   return `${losses}D`;
 }
 
@@ -194,6 +199,7 @@ function getBadge(rank: number, winRate: number, games: number) {
   if (rank === 1) return "Champion actuel";
   if (winRate >= 35) return "Très régulier";
   if (games >= 25) return "Joueur actif";
+
   return "En progression";
 }
 
@@ -201,16 +207,17 @@ function computeElo(winRate: number, avgScore: number, games: number) {
   return Math.round(1000 + winRate * 4 + games * 2 - avgScore * 0.8);
 }
 
-function getPlayerEmail(name: string) {
-  const emailOverrides: Record<string, string> = {
-    "Guillaume GILLET": "guillaume.gillet@seenovate.com",
-    Guillaume: "guillaume.gillet@seenovate.com",
-    "Guillaume G": "guillaume.gillet@seenovate.com",
-  };
-
-  return (
-    emailOverrides[name] ??
-    `${name.toLowerCase().replaceAll(" ", ".")}@seenovate.com`
+function getPlayerEmail(joueur: RawRow) {
+  return normalizeText(
+    joueur.Email ??
+      joueur.email ??
+      joueur.Mail ??
+      joueur.mail ??
+      joueur.AdresseMail ??
+      joueur.adresseMail ??
+      joueur.Courriel ??
+      joueur.courriel ??
+      ""
   );
 }
 
@@ -270,7 +277,7 @@ export function mapExcelToSkyjoData({
       joueurId,
       rank: 0,
       name,
-      email: getPlayerEmail(name),
+      email: getPlayerEmail(joueur),
       elo,
       winRate,
       games,
@@ -310,7 +317,7 @@ export function mapExcelToSkyjoData({
           score: toNumber(result.Score),
           position: toNumber(result.Position),
         }))
-        .sort((a, b) => b.score - a.score);
+        .sort((a, b) => a.position - b.position);
 
       const sortedByPosition = [...results].sort(
         (a, b) => a.position - b.position
@@ -386,6 +393,7 @@ export function mapExcelToSkyjoData({
       const winsByPlayer = new Map<string, number>();
 
       for (const game of seasonGames) {
+        if (!game.winner) continue;
         winsByPlayer.set(game.winner, (winsByPlayer.get(game.winner) ?? 0) + 1);
       }
 
@@ -397,12 +405,7 @@ export function mapExcelToSkyjoData({
         ...season,
         players: playerNames.size,
         leader,
-        status:
-          season.id === currentSeasonId
-            ? "Active"
-            : season.id === "S00"
-              ? "Pré-saison"
-              : "Terminée",
+        status: season.id === currentSeasonId ? "Active" : "Terminée",
       };
     })
     .sort((a, b) => b.sortIndex - a.sortIndex);
@@ -418,7 +421,12 @@ export function mapExcelToSkyjoData({
         const playerA = normalizeText(a.JoueurNom);
         const playerB = normalizeText(b.JoueurNom);
 
-        const names = [playerA, playerB].sort();
+        if (!playerA || !playerB || playerA === playerB) continue;
+
+        const names = [playerA, playerB].sort((left, right) =>
+          left.localeCompare(right, "fr")
+        );
+
         const key = `${names[0]}__${names[1]}`;
 
         if (!rivalryMap.has(key)) {
@@ -428,7 +436,7 @@ export function mapExcelToSkyjoData({
             games: 0,
             winsA: 0,
             winsB: 0,
-            domination: names[0],
+            domination: "Égalité",
             intensity: "Faible",
           });
         }
@@ -438,11 +446,18 @@ export function mapExcelToSkyjoData({
 
         const positionA = toNumber(a.Position);
         const positionB = toNumber(b.Position);
-        const normalizedWinner = positionA < positionB ? playerA : playerB;
 
-        if (normalizedWinner === rivalry.playerA) {
+        if (positionA === positionB) {
+          continue;
+        }
+
+        const winner = positionA < positionB ? playerA : playerB;
+
+        if (winner === rivalry.playerA) {
           rivalry.winsA += 1;
-        } else {
+        }
+
+        if (winner === rivalry.playerB) {
           rivalry.winsB += 1;
         }
       }
@@ -454,11 +469,16 @@ export function mapExcelToSkyjoData({
       const maxWins = Math.max(rivalry.winsA, rivalry.winsB);
       const minWins = Math.min(rivalry.winsA, rivalry.winsB);
       const gap = maxWins - minWins;
+      const drawCount = rivalry.games - rivalry.winsA - rivalry.winsB;
 
       return {
         ...rivalry,
         domination:
-          rivalry.winsA >= rivalry.winsB ? rivalry.playerA : rivalry.playerB,
+          rivalry.winsA > rivalry.winsB
+            ? rivalry.playerA
+            : rivalry.winsB > rivalry.winsA
+              ? rivalry.playerB
+              : "Égalité",
         intensity:
           rivalry.games >= 20 && gap <= 4
             ? "Forte"
@@ -466,11 +486,12 @@ export function mapExcelToSkyjoData({
               ? "Équilibrée"
               : gap >= 8
                 ? "Dominée"
-                : "Modérée",
+                : drawCount > 0 && gap === 0
+                  ? "Équilibrée"
+                  : "Modérée",
       };
     })
-    .sort((a, b) => b.games - a.games)
-    .slice(0, 12);
+    .sort((a, b) => b.games - a.games || Math.abs(b.winsA - b.winsB) - Math.abs(a.winsA - a.winsB));
 
   return {
     players,
