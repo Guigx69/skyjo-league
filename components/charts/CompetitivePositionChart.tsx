@@ -14,18 +14,29 @@ import {
   ZAxis,
 } from "recharts";
 
-const PLAYER_COLORS = [
-  "#60a5fa",
-  "#818cf8",
-  "#fb7185",
-  "#f59e0b",
-  "#34d399",
-  "#a78bfa",
-  "#f472b6",
-  "#22c55e",
-  "#38bdf8",
-  "#e879f9",
+const PLAYER_COLOR_PALETTE = [
+  "#38bdf8", "#f59e0b", "#a78bfa", "#34d399", "#fb7185", "#60a5fa",
+  "#f97316", "#22c55e", "#e879f9", "#facc15", "#2dd4bf", "#c084fc",
+  "#f43f5e", "#84cc16", "#06b6d4", "#fb923c", "#818cf8", "#10b981",
+  "#f472b6", "#eab308", "#14b8a6", "#8b5cf6", "#ef4444", "#3b82f6",
 ];
+
+function getPlayerColor(playerKey: string | number) {
+  const normalizedKey = String(playerKey)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+  let hash = 0;
+
+  for (let index = 0; index < normalizedKey.length; index += 1) {
+    hash = normalizedKey.charCodeAt(index) + ((hash << 5) - hash);
+    hash |= 0;
+  }
+
+  return PLAYER_COLOR_PALETTE[Math.abs(hash) % PLAYER_COLOR_PALETTE.length];
+}
 
 export default function CompetitivePositionChart({
   players,
@@ -43,26 +54,30 @@ export default function CompetitivePositionChart({
   const chartData = useMemo(
     () =>
       players
-        .map((player: any, index: number) => ({
-          id: String(player.id ?? player.name),
-          name: player.name,
-          averageScore:
-            player.averageScore ??
-            player.avgScore ??
-            player.scoreAverage ??
-            player.scoreMoyen ??
-            0,
-          winRate: player.winRate ?? player.winrate ?? 0,
-          games:
-            player.games ??
-            player.gamesPlayed ??
-            player.parties ??
-            player.totalGames ??
-            0,
-          elo: player.elo ?? 0,
-          rank: player.rank ?? index + 1,
-          fill: PLAYER_COLORS[index % PLAYER_COLORS.length],
-        }))
+        .map((player: any, index: number) => {
+          const id = String(player.id ?? player.name);
+
+          return {
+            id,
+            name: player.name,
+            averageScore:
+              player.averageScore ??
+              player.avgScore ??
+              player.scoreAverage ??
+              player.scoreMoyen ??
+              0,
+            winRate: player.winRate ?? player.winrate ?? 0,
+            games:
+              player.games ??
+              player.gamesPlayed ??
+              player.parties ??
+              player.totalGames ??
+              0,
+            elo: player.elo ?? 0,
+            rank: player.rank ?? index + 1,
+            fill: getPlayerColor(id),
+          };
+        })
         .filter((player) => player.averageScore > 0 || player.winRate > 0)
         .sort((a, b) => a.name.localeCompare(b.name, "fr")),
     [players]
@@ -71,9 +86,7 @@ export default function CompetitivePositionChart({
   const filteredPlayers = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    if (!query) {
-      return chartData;
-    }
+    if (!query) return chartData;
 
     return chartData.filter((player) =>
       player.name.toLowerCase().includes(query)
@@ -123,11 +136,11 @@ export default function CompetitivePositionChart({
           </div>
 
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
-            <div ref={selectorRef} className="relative w-full sm:w-[300px]">
+            <div ref={selectorRef} className="relative w-full sm:w-[260px]">
               <button
                 type="button"
                 onClick={() => setIsSelectorOpen((current) => !current)}
-                className="flex w-full items-center justify-between rounded-2xl border border-blue-400/50 bg-[#020617] px-4 py-3 text-left text-sm font-medium text-white outline-none transition hover:border-blue-300/70 focus:border-blue-300"
+                className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-[#020617] px-4 py-3 text-left text-sm font-medium text-white outline-none transition hover:border-blue-300/60 focus:border-blue-300"
               >
                 <span className="truncate">{selectedPlayerLabel}</span>
                 <span className="ml-4 shrink-0 text-xs text-zinc-500">
@@ -179,7 +192,14 @@ export default function CompetitivePositionChart({
                             : "text-zinc-300 hover:bg-white/[0.06] hover:text-white"
                         }`}
                       >
-                        <span className="truncate">{player.name}</span>
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: player.fill }}
+                          />
+                          <span className="truncate">{player.name}</span>
+                        </span>
+
                         <span className="ml-3 shrink-0 text-xs text-zinc-600">
                           #{player.rank}
                         </span>
@@ -219,7 +239,7 @@ export default function CompetitivePositionChart({
       </div>
 
       <div className="w-full max-w-full overflow-hidden rounded-2xl border border-white/10 bg-black/10 p-3">
-        <div className="h-[440px] w-full min-w-0">
+        <div className="h-[440px] w-full max-w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 26, right: 22, bottom: 44, left: 4 }}>
               <CartesianGrid stroke="rgba(255,255,255,0.06)" />
@@ -424,18 +444,23 @@ function CompetitiveTooltip({
   scoreThreshold,
   winRateThreshold,
 }: any) {
-  if (!active || !payload || payload.length === 0) {
-    return null;
-  }
+  if (!active || !payload || payload.length === 0) return null;
 
   const item = payload[0].payload;
   const profile = getSkyjoProfile(item, scoreThreshold, winRateThreshold);
 
   return (
     <div className="min-w-[270px] -translate-y-1 rounded-2xl border border-white/10 bg-gradient-to-br from-[#020617]/95 via-[#030712]/95 to-[#0f172a]/90 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.65)] backdrop-blur-xl">
-      <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-600">
-        Joueur
-      </p>
+      <div className="flex items-center gap-2">
+        <span
+          className="h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: item.fill }}
+        />
+
+        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-600">
+          Joueur
+        </p>
+      </div>
 
       <p className="mt-1 text-sm font-semibold text-white">{item.name}</p>
 
@@ -537,30 +562,18 @@ function getSkyjoProfile(
   const goodWinRate = player.winRate >= winRateThreshold;
 
   if (goodScore && goodWinRate) {
-    return {
-      label: "Performance élevée",
-      className: "text-emerald-300",
-    };
+    return { label: "Performance élevée", className: "text-emerald-300" };
   }
 
   if (!goodScore && goodWinRate) {
-    return {
-      label: "Victoire efficace",
-      className: "text-amber-300",
-    };
+    return { label: "Victoire efficace", className: "text-amber-300" };
   }
 
   if (goodScore && !goodWinRate) {
-    return {
-      label: "Stabilité",
-      className: "text-blue-300",
-    };
+    return { label: "Stabilité", className: "text-blue-300" };
   }
 
-  return {
-    label: "Marge de progression",
-    className: "text-zinc-300",
-  };
+  return { label: "Marge de progression", className: "text-zinc-300" };
 }
 
 function useCloseOnOutsideClick(
@@ -570,7 +583,6 @@ function useCloseOnOutsideClick(
   useEffect(() => {
     const handleClick = (event: MouseEvent | TouchEvent) => {
       const element = ref.current;
-
       if (!element) return;
 
       if (!element.contains(event.target as Node)) {

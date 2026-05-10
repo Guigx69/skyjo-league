@@ -41,10 +41,26 @@ type Option = {
 };
 
 const quickLinks = [
-  { href: "/leaderboard", label: "Voir le classement", description: "Elo, winrate et podium" },
-  { href: "/players", label: "Explorer les joueurs", description: "Stats individuelles" },
-  { href: "/rivalries", label: "Analyser les rivalités", description: "Duels et domination" },
-  { href: "/games", label: "Consulter les parties", description: "Historique des matchs" },
+  {
+    href: "/leaderboard",
+    label: "Voir le classement",
+    description: "Elo, winrate et podium",
+  },
+  {
+    href: "/players",
+    label: "Explorer les joueurs",
+    description: "Stats individuelles",
+  },
+  {
+    href: "/rivalries",
+    label: "Analyser les rivalités",
+    description: "Duels et domination",
+  },
+  {
+    href: "/games",
+    label: "Consulter les parties",
+    description: "Historique des matchs",
+  },
 ];
 
 const monthOptions = [
@@ -346,7 +362,7 @@ export default function DashboardPage() {
 
   if (checkingAuth || loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#020617] text-white">
+      <main className="flex min-h-screen items-center justify-center overflow-x-hidden bg-[#020617] text-white">
         <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-4 text-sm text-zinc-300 shadow-2xl">
           Chargement du dashboard...
         </div>
@@ -374,7 +390,7 @@ export default function DashboardPage() {
 
   return (
     <AppShell userEmail={userEmail}>
-      <div className="space-y-8 sm:space-y-10">
+      <div className="w-full max-w-full overflow-x-hidden space-y-8 sm:space-y-10">
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.09] via-white/[0.04] to-blue-500/[0.08] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.35)] sm:p-8">
           <div className="absolute right-[-80px] top-[-80px] h-56 w-56 rounded-full bg-blue-500/20 blur-3xl" />
           <div className="absolute bottom-[-100px] left-[20%] h-48 w-48 rounded-full bg-cyan-400/10 blur-3xl" />
@@ -547,43 +563,89 @@ export default function DashboardPage() {
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-          <KpiCard title="Parties" value={filteredGames.length} subtitle="Périmètre actif" tone="blue" />
-          <KpiCard title="Joueurs actifs" value={filteredPlayers.length} subtitle="Sur la période" tone="emerald" />
-          <KpiCard title="Parties / jour" value={gamesPerDay} subtitle="Rythme moyen" tone="violet" />
-          <KpiCard title="Score moyen" value={averageScore} subtitle="Score gagnant moyen" tone="violet" />
-          <KpiCard title="Meilleur score" value={bestScore} subtitle="Record période" tone="amber" />
-          <KpiCard title="Pire score" value={worstScore} subtitle="Score maximum constaté" tone="red" />
+          <KpiCard
+            title="Parties"
+            value={filteredGames.length}
+            subtitle="Périmètre actif"
+            tone="blue"
+          />
+          <KpiCard
+            title="Joueurs actifs"
+            value={filteredPlayers.length}
+            subtitle="Sur la période"
+            tone="emerald"
+          />
+          <KpiCard
+            title="Parties / jour"
+            value={gamesPerDay}
+            subtitle="Rythme moyen"
+            tone="violet"
+          />
+          <KpiCard
+            title="Score moyen"
+            value={averageScore}
+            subtitle="Score gagnant moyen"
+            tone="violet"
+          />
+          <KpiCard
+            title="Meilleur score"
+            value={bestScore}
+            subtitle="Record période"
+            tone="amber"
+          />
+          <KpiCard
+            title="Pire score"
+            value={worstScore}
+            subtitle="Score maximum constaté"
+            tone="red"
+          />
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
-          <ChartSection eyebrow="Activité" title="Activité et tendance des scores" description="Évolution des parties, scores minimum, moyen et maximum.">
-            <ChartViewport minWidth="760px">
+        <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.65fr)]">
+          <ChartSection
+            eyebrow="Activité"
+            title="Activité et tendance des scores"
+            description="Évolution des parties, scores minimum, moyen et maximum."
+          >
+            <ChartViewport>
               <ActivityChart games={filteredGames} />
             </ChartViewport>
           </ChartSection>
 
-          <ChartSection eyebrow="Participation" title="Nombre de joueurs par partie" description="Répartition du format des parties jouées.">
-            <ChartViewport minWidth="520px">
+          <ChartSection
+            eyebrow="Participation"
+            title="Nombre de joueurs par partie"
+            description="Répartition du format des parties jouées."
+          >
+            <ChartViewport>
               <PlayersPerGameChart games={filteredGames} />
             </ChartViewport>
           </ChartSection>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-          <ChartSection eyebrow="Scores" title="Répartition des scores" description="Distribution des scores par tranche.">
-            <ChartViewport minWidth="600px">
+        <section className="grid gap-4 2xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+          <ChartSection
+            eyebrow="Scores"
+            title="Répartition des scores"
+            description="Distribution des scores par tranche."
+          >
+            <ChartViewport>
               <ScoreDistributionChart games={filteredGames} />
             </ChartViewport>
           </ChartSection>
 
-          <ChartSection eyebrow="Positionnement" title="Positionnement compétitif des joueurs" description="Lecture croisée entre score moyen, taux de victoire et volume de parties.">
-            <ChartViewport minWidth="880px">
+          <ChartSection
+            eyebrow="Positionnement"
+            title="Positionnement compétitif des joueurs"
+            description="Lecture croisée entre score moyen, taux de victoire et volume de parties."
+          >
+            <ChartViewport>
               <CompetitivePositionChart players={filteredPlayers} />
             </ChartViewport>
           </ChartSection>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
           <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] sm:p-6">
             <div className="flex items-end justify-between gap-4">
               <div>
@@ -680,7 +742,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+        <section className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
           {hotRivalry && (
             <div className="rounded-[1.75rem] border border-white/10 bg-gradient-to-br from-red-500/[0.08] to-white/[0.035] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] sm:p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-300/80">
@@ -888,8 +950,8 @@ function SingleDatePicker({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-[calc(100%+0.75rem)] z-50 w-[390px] rounded-[1.5rem] border border-white/10 bg-[#020617] p-4 shadow-[0_30px_90px_rgba(0,0,0,0.55)]">
-          <div className="mb-4 grid grid-cols-[32px_32px_110px_86px_32px_32px] items-center gap-2">
+        <div className="absolute left-0 top-[calc(100%+0.75rem)] z-50 w-[min(390px,calc(100vw-2rem))] rounded-[1.5rem] border border-white/10 bg-[#020617] p-4 shadow-[0_30px_90px_rgba(0,0,0,0.55)]">
+          <div className="mb-4 grid grid-cols-[32px_32px_minmax(0,110px)_86px_32px_32px] items-center gap-2">
             <CalendarNavButton
               label="Année précédente"
               disabled={!canGoPreviousYear}
@@ -1293,7 +1355,7 @@ function ChartSection({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[1.75rem] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] sm:p-6">
+    <section className="min-w-0 overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] sm:p-6">
       <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">
         {eyebrow}
       </p>
@@ -1304,21 +1366,17 @@ function ChartSection({
 
       <p className="mt-2 text-sm leading-6 text-zinc-400">{description}</p>
 
-      <div className="mt-6">{children}</div>
+      <div className="mt-6 min-w-0">{children}</div>
     </section>
   );
 }
 
-function ChartViewport({
-  minWidth,
-  children,
-}: {
-  minWidth: string;
-  children: ReactNode;
-}) {
+function ChartViewport({ children }: { children: ReactNode }) {
   return (
-    <div className="-mx-2 overflow-x-auto px-2 pb-2">
-      <div style={{ minWidth }}>{children}</div>
+    <div className="w-full min-w-0 max-w-full overflow-hidden">
+      <div className="w-full min-w-0 max-w-full [&_.recharts-responsive-container]:!w-full">
+        {children}
+      </div>
     </div>
   );
 }
