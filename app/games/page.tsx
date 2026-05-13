@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useAuthRedirect } from "@/hooks/useAuthRedirect";
@@ -74,21 +75,9 @@ export default function GamesPage() {
 
         <section className="grid gap-4 md:grid-cols-4">
           <KpiCard title="Parties" value={games.length} />
-
-          <KpiCard
-            title="Joueurs max"
-            value={getMaxPlayers(games)}
-          />
-
-          <KpiCard
-            title="Meilleur score"
-            value={getBestGameScore(games)}
-          />
-
-          <KpiCard
-            title="Saisons"
-            value={seasonsWithGames.length}
-          />
+          <KpiCard title="Joueurs max" value={getMaxPlayers(games)} />
+          <KpiCard title="Meilleur score" value={getBestGameScore(games)} />
+          <KpiCard title="Saisons" value={seasonsWithGames.length} />
         </section>
 
         <div className="space-y-8">
@@ -127,22 +116,10 @@ export default function GamesPage() {
 
               <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-white/[0.04] text-xs uppercase tracking-[0.18em] text-zinc-500">
-                    <tr>
-                      <th className="px-4 py-4">Partie</th>
-                      <th className="px-4 py-4">Lieu</th>
-                      <th className="px-4 py-4">Joueurs</th>
-                      <th className="px-4 py-4">Vainqueur</th>
-                      <th className="px-4 py-4">Score gagnant</th>
-                      <th className="px-4 py-4">Pire score</th>
-                      <th className="px-4 py-4 text-right">Détail</th>
-                    </tr>
-                  </thead>
-
                   <tbody className="divide-y divide-white/10">
                     {groupGamesByDate(season.games).map((group: any) => (
-                      <>
-                        <tr key={`date-${group.date}`} className="bg-white/[0.035]">
+                      <Fragment key={`group-${season.id}-${group.date}`}>
+                        <tr className="bg-white/[0.035]">
                           <td
                             colSpan={7}
                             className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-blue-200"
@@ -151,17 +128,49 @@ export default function GamesPage() {
                           </td>
                         </tr>
 
+                        <tr className="bg-white/[0.04] text-xs uppercase tracking-[0.18em] text-zinc-500">
+                          <th className="px-4 py-4 font-semibold">Partie</th>
+                          <th className="px-4 py-4 font-semibold">Lieu</th>
+                          <th className="px-4 py-4 font-semibold">Joueurs</th>
+                          <th className="px-4 py-4 font-semibold">Vainqueur</th>
+                          <th className="px-4 py-4 font-semibold">
+                            Score gagnant
+                          </th>
+                          <th className="px-4 py-4 font-semibold">Pire score</th>
+                          <th className="px-4 py-4 text-right font-semibold">
+                            Détail
+                          </th>
+                        </tr>
+
                         {group.games.map((game: any) => (
                           <tr
                             key={game.id}
                             className="bg-black/10 transition hover:bg-white/[0.04]"
                           >
-                            <td className="px-4 py-4 text-zinc-400">{game.partieId}</td>
-                            <td className="px-4 py-4 text-zinc-300">{game.location}</td>
-                            <td className="px-4 py-4 text-zinc-300">{game.players}</td>
-                            <td className="px-4 py-4 font-medium text-white">{game.winner}</td>
-                            <td className="px-4 py-4 text-emerald-300">{game.bestScore}</td>
-                            <td className="px-4 py-4 text-red-300">{game.worstScore}</td>
+                            <td className="px-4 py-4 text-zinc-400">
+                              {game.partieId}
+                            </td>
+
+                            <td className="px-4 py-4 text-zinc-300">
+                              {game.location}
+                            </td>
+
+                            <td className="px-4 py-4 text-zinc-300">
+                              {game.players}
+                            </td>
+
+                            <td className="px-4 py-4 font-medium text-white">
+                              {game.winner}
+                            </td>
+
+                            <td className="px-4 py-4 text-emerald-300">
+                              {game.bestScore}
+                            </td>
+
+                            <td className="px-4 py-4 text-red-300">
+                              {game.worstScore}
+                            </td>
+
                             <td className="px-4 py-4 text-right">
                               <Link
                                 href={`/games/${game.partieId ?? game.id}`}
@@ -172,7 +181,7 @@ export default function GamesPage() {
                             </td>
                           </tr>
                         ))}
-                      </>
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>

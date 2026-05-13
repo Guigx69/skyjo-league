@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { useAuthRedirect } from "@/hooks/useAuthRedirect";
 import { useSkyjoData } from "@/lib/useSkyjoData";
+import { supabase } from "@/lib/supabase";
 
 export default function GameDetailPage() {
   const { checkingAuth } = useAuthRedirect({
@@ -14,6 +16,40 @@ export default function GameDetailPage() {
   const { data, loading } = useSkyjoData();
   const params = useParams();
   const gameId = String(params.id ?? "");
+
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    async function checkAdmin() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setIsAdmin(false);
+        return;
+      }
+
+      const authEmail = String(user.email ?? "").toLowerCase().trim();
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, email")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const profileRole = String(profile?.role ?? "").toLowerCase().trim();
+      const profileEmail = String(profile?.email ?? "").toLowerCase().trim();
+
+      const adminByRole = profileRole === "admin";
+      const adminByEmail =
+        authEmail.includes("+admin@") || profileEmail.includes("+admin@");
+
+      setIsAdmin(adminByRole || adminByEmail);
+    }
+
+    checkAdmin();
+  }, []);
 
   if (checkingAuth || loading) {
     return (
@@ -63,12 +99,23 @@ export default function GameDetailPage() {
           <div className="absolute right-[-80px] top-[-80px] h-56 w-56 rounded-full bg-blue-500/20 blur-3xl" />
 
           <div className="relative">
-            <Link
-              href="/games"
-              className="text-sm font-medium text-blue-300 hover:text-blue-200"
-            >
-              ← Retour aux parties
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/games"
+                className="text-sm font-medium text-blue-300 hover:text-blue-200"
+              >
+                ← Retour aux parties
+              </Link>
+
+              {isAdmin && (
+                <Link
+                  href={`/games/${game.partieId}/edit`}
+                  className="rounded-2xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-300 hover:text-slate-950"
+                >
+                  Modifier la partie
+                </Link>
+              )}
+            </div>
 
             <p className="mt-8 text-xs font-semibold uppercase tracking-[0.35em] text-blue-300/80">
               Détail partie
@@ -183,9 +230,11 @@ export default function GameDetailPage() {
                       <td className="px-4 py-4 text-zinc-400">
                         #{result.position}
                       </td>
+
                       <td className="px-4 py-4 font-medium text-white">
                         {result.playerName}
                       </td>
+
                       <td className="px-4 py-4 text-zinc-300">
                         {result.score}
                       </td>
