@@ -13,6 +13,7 @@ type Option = {
 };
 
 type Player = {
+  joueurId?: string | number;
   id?: string | number;
   JoueurID?: string | number;
   joueurID?: string | number;
@@ -45,6 +46,7 @@ type Game = {
 };
 
 type Result = {
+  playerId?: string | number;
   playerName?: string;
   JoueurNom?: string;
   joueurNom?: string;
@@ -453,27 +455,67 @@ function PremiumSelect({
   options: Option[];
   onChange: (value: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useCloseOnOutsideClick(containerRef, () => setOpen(false));
+
+  const selectedOption = options.find((option) => option.value === value);
+
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.035] p-2">
+    <div
+      ref={containerRef}
+      className="relative rounded-xl border border-white/10 bg-white/[0.035] p-2"
+    >
       <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
         {label}
       </span>
 
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-lg border border-white/10 bg-[#020617] px-3 text-sm font-semibold text-white outline-none transition hover:border-violet-400/40 focus:border-violet-400/60"
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex h-10 w-full items-center justify-between gap-3 rounded-lg border border-white/10 bg-[#020617] px-3 text-left text-sm font-semibold text-white outline-none transition hover:border-violet-400/40 focus:border-violet-400/60"
       >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+        <span className="truncate">{selectedOption?.label ?? "Sélectionner"}</span>
+        <span className="shrink-0 text-xs text-zinc-500">
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-[80] w-full min-w-[240px] overflow-hidden rounded-2xl border border-white/10 bg-[#020617] p-2 shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
+          <div className="max-h-64 overflow-y-auto pr-1 [scrollbar-color:rgba(167,139,250,0.55)_rgba(255,255,255,0.05)] [scrollbar-width:thin]">
+            {options.map((option) => {
+              const selected = option.value === value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                  className={[
+                    "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition",
+                    selected
+                      ? "bg-violet-400/12 text-violet-100 ring-1 ring-violet-400/25"
+                      : "text-zinc-300 hover:bg-white/[0.06] hover:text-white",
+                  ].join(" ")}
+                >
+                  <span className="truncate">{option.label}</span>
+                  {selected && (
+                    <span className="shrink-0 text-xs text-violet-200">✓</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
 
 function MultiSelectFilter({
   label,
@@ -1069,7 +1111,7 @@ function normalizeResult(result: Result): NormalizedResult {
 
   return {
     name: name ? String(name) : "",
-    playerId: result.JoueurID ?? result.joueurID,
+    playerId: result.playerId ?? result.JoueurID ?? result.joueurID,
     score,
     position,
     isWinner:
@@ -1117,11 +1159,13 @@ function getWinnerNames(results: NormalizedResult[]) {
 
 function sortSeasons(seasons: SeasonStats[], sortBy: string) {
   return [...seasons].sort((a, b) => {
-    if (sortBy === "games") return b.games - a.games || getSeasonTimelineRank(a) - getSeasonTimelineRank(b);
-    if (sortBy === "players") return b.players - a.players || getSeasonTimelineRank(a) - getSeasonTimelineRank(b);
+    const timelineDiff = getSeasonSortValue(b.id) - getSeasonSortValue(a.id);
+
+    if (sortBy === "games") return b.games - a.games || timelineDiff;
+    if (sortBy === "players") return b.players - a.players || timelineDiff;
     if (sortBy === "leader") return a.leader.localeCompare(b.leader, "fr");
 
-    return getSeasonTimelineRank(a) - getSeasonTimelineRank(b);
+    return timelineDiff;
   });
 }
 

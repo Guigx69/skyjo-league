@@ -67,6 +67,7 @@ type Game = {
   players?: number;
   NbJoueurs?: number;
   nbJoueurs?: number;
+  location?: string;
   Lieu?: string;
   lieu?: string;
   season?: string;
@@ -1209,7 +1210,7 @@ function PremiumSelectInline({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-[70] max-h-64 w-full min-w-[150px] overflow-y-auto rounded-xl border border-white/10 bg-[#020617] p-1 shadow-[0_20px_60px_rgba(0,0,0,0.55)]">
+        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-[70] w-full min-w-[220px] rounded-2xl border border-white/10 bg-[#020617]/98 p-1.5 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl">
           {options.map((option) => {
             const selected = option.value === value;
 
@@ -1222,7 +1223,7 @@ function PremiumSelectInline({
                   setOpen(false);
                 }}
                 className={[
-                  "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition",
+                  "flex min-h-[52px] w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-medium transition",
                   selected
                     ? "bg-blue-500 text-white"
                     : "text-zinc-300 hover:bg-white/[0.06] hover:text-white",
@@ -2012,7 +2013,12 @@ function getGamePlayersCount(game: Game) {
 }
 
 function getGameLocation(game: Game) {
-  return game.lieu ?? game.Lieu ?? "";
+  return String(
+    (game as any).location ??
+      game.lieu ??
+      game.Lieu ??
+      ""
+  ).trim();
 }
 
 function isNonEmptyString(value: string | null | undefined): value is string {

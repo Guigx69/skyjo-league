@@ -43,7 +43,12 @@ export default function GamesPage() {
       };
     })
     .filter((season: any) => season.games.length > 0)
-    .sort((a: any, b: any) => b.sortIndex - a.sortIndex);
+    .sort((a: any, b: any) => {
+      const seasonA = Number(String(a.id).replace("S", ""));
+      const seasonB = Number(String(b.id).replace("S", ""));
+
+      return seasonB - seasonA;
+    });
 
   return (
     <AppShell>
@@ -72,12 +77,12 @@ export default function GamesPage() {
 
           <KpiCard
             title="Joueurs max"
-            value={Math.max(...games.map((game: any) => game.players))}
+            value={getMaxPlayers(games)}
           />
 
           <KpiCard
             title="Meilleur score"
-            value={Math.min(...games.map((game: any) => game.bestScore))}
+            value={getBestGameScore(games)}
           />
 
           <KpiCard
@@ -124,7 +129,6 @@ export default function GamesPage() {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-white/[0.04] text-xs uppercase tracking-[0.18em] text-zinc-500">
                     <tr>
-                      <th className="px-4 py-4">Date</th>
                       <th className="px-4 py-4">Partie</th>
                       <th className="px-4 py-4">Lieu</th>
                       <th className="px-4 py-4">Joueurs</th>
@@ -136,48 +140,39 @@ export default function GamesPage() {
                   </thead>
 
                   <tbody className="divide-y divide-white/10">
-                    {season.games.map((game: any) => (
-                      <tr
-                        key={game.id}
-                        className="bg-black/10 transition hover:bg-white/[0.04]"
-                      >
-                        <td className="px-4 py-4 text-zinc-300">
-                          {game.date}
-                        </td>
-
-                        <td className="px-4 py-4 text-zinc-400">
-                          {game.partieId}
-                        </td>
-
-                        <td className="px-4 py-4 text-zinc-300">
-                          {game.location}
-                        </td>
-
-                        <td className="px-4 py-4 text-zinc-300">
-                          {game.players}
-                        </td>
-
-                        <td className="px-4 py-4 font-medium text-white">
-                          {game.winner}
-                        </td>
-
-                        <td className="px-4 py-4 text-emerald-300">
-                          {game.bestScore}
-                        </td>
-
-                        <td className="px-4 py-4 text-red-300">
-                          {game.worstScore}
-                        </td>
-
-                        <td className="px-4 py-4 text-right">
-                          <Link
-                            href={`/games/${game.id}`}
-                            className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white hover:text-slate-950"
+                    {groupGamesByDate(season.games).map((group: any) => (
+                      <>
+                        <tr key={`date-${group.date}`} className="bg-white/[0.035]">
+                          <td
+                            colSpan={7}
+                            className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-blue-200"
                           >
-                            Voir la partie
-                          </Link>
-                        </td>
-                      </tr>
+                            {group.date}
+                          </td>
+                        </tr>
+
+                        {group.games.map((game: any) => (
+                          <tr
+                            key={game.id}
+                            className="bg-black/10 transition hover:bg-white/[0.04]"
+                          >
+                            <td className="px-4 py-4 text-zinc-400">{game.partieId}</td>
+                            <td className="px-4 py-4 text-zinc-300">{game.location}</td>
+                            <td className="px-4 py-4 text-zinc-300">{game.players}</td>
+                            <td className="px-4 py-4 font-medium text-white">{game.winner}</td>
+                            <td className="px-4 py-4 text-emerald-300">{game.bestScore}</td>
+                            <td className="px-4 py-4 text-red-300">{game.worstScore}</td>
+                            <td className="px-4 py-4 text-right">
+                              <Link
+                                href={`/games/${game.partieId ?? game.id}`}
+                                className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white hover:text-slate-950"
+                              >
+                                Voir la partie
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </>
                     ))}
                   </tbody>
                 </table>
@@ -197,4 +192,36 @@ function KpiCard({ title, value }: { title: string; value: string | number }) {
       <p className="mt-3 text-4xl font-semibold text-white">{value}</p>
     </div>
   );
+}
+
+function getMaxPlayers(games: any[]) {
+  const values = games
+    .map((game) => Number(game.players))
+    .filter((value) => Number.isFinite(value));
+
+  return values.length > 0 ? Math.max(...values) : "—";
+}
+
+function getBestGameScore(games: any[]) {
+  const values = games
+    .map((game) => Number(game.bestScore))
+    .filter((value) => Number.isFinite(value));
+
+  return values.length > 0 ? Math.min(...values) : "—";
+}
+
+function groupGamesByDate(games: any[]) {
+  const groups = new Map<string, any[]>();
+
+  games.forEach((game) => {
+    const key = game.date ?? "Date inconnue";
+    groups.set(key, [...(groups.get(key) ?? []), game]);
+  });
+
+  return Array.from(groups.entries()).map(([date, dateGames]) => ({
+    date,
+    games: dateGames.sort((a, b) =>
+      String(b.partieId ?? "").localeCompare(String(a.partieId ?? ""), "fr")
+    ),
+  }));
 }

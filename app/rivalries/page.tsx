@@ -192,13 +192,13 @@ export default function RivalriesPage() {
     (selectedPlayer !== "all" ? 1 : 0) +
     (selectedIntensity !== "all" ? 1 : 0) +
     (sortBy !== "games" ? 1 : 0) +
-    (displayMode !== "hot" ? 1 : 0);
+    (displayMode !== "all" ? 1 : 0);
 
   const resetFilters = () => {
     setSelectedPlayer("all");
     setSelectedIntensity("all");
     setSortBy("games");
-    setDisplayMode("hot");
+    setDisplayMode("all");
   };
 
   if (checkingAuth || loading) {
@@ -520,14 +520,6 @@ function getTightnessScore(rivalry: Rivalry) {
 
   return closeness * 100 + volumeWeight * 20;
 }
-
-function getDisplayModeLabel(displayMode: string) {
-  return (
-    displayModeOptions.find((option) => option.value === displayMode)?.label ??
-    displayMode
-  );
-}
-
 
 function RivalryHeatmap({
   players,

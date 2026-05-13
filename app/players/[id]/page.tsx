@@ -13,7 +13,7 @@ export default function PlayerDetailPage() {
 
   const { data, loading } = useSkyjoData();
   const params = useParams();
-  const playerId = Number(params.id);
+  const playerId = String(params.id ?? "");
 
   if (checkingAuth || loading) {
     return (
@@ -25,7 +25,9 @@ export default function PlayerDetailPage() {
     );
   }
 
-  const player = data.players.find((p: any) => p.id === playerId);
+  const player = data.players.find(
+    (p: any) => String(p.joueurId ?? p.id) === playerId
+  );
 
   if (!player) {
     return (
@@ -47,8 +49,17 @@ export default function PlayerDetailPage() {
       </AppShell>
     );
   }
+  
+  const allPlayerGames = data.games.filter((game: any) =>
+    Array.isArray(game.results) &&
+    game.results.some(
+      (result: any) =>
+        result.playerName === player.name ||
+        String(result.playerId) === String(player.joueurId)
+    )
+  );
 
-  const playerGames = data.games.filter(
+  const playerGames = allPlayerGames.filter(
     (game: any) => game.winner === player.name
   );
 

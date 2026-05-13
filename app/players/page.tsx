@@ -59,7 +59,7 @@ export default function PlayersPage() {
 
           <KPI
             title="Best score"
-            value={Math.min(...players.map((p: any) => p.bestScore))}
+            value={getBestScore(players)}
           />
         </section>
 
@@ -108,7 +108,7 @@ export default function PlayersPage() {
 
               {/* BOUTON FICHE DETAILLEE */}
               <Link
-                href={`/players/${player.id}`}
+                href={`/players/${player.joueurId ?? player.id}`}
                 className="mt-6 block w-full rounded-2xl border border-white/10 px-4 py-3 text-center text-sm font-medium text-zinc-300 transition hover:bg-white hover:text-slate-950"
               >
                 Voir la fiche détaillée
@@ -141,4 +141,12 @@ function Stat({ label, value }: any) {
       <p className="mt-1 text-lg font-semibold text-white">{value}</p>
     </div>
   );
+}
+
+function getBestScore(players: any[]) {
+  const values = players
+    .map((player) => Number(player.bestScore))
+    .filter((value) => Number.isFinite(value) && value !== 0);
+
+  return values.length > 0 ? Math.min(...values) : "—";
 }

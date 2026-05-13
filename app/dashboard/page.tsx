@@ -310,8 +310,27 @@ export default function DashboardPage() {
       }));
   }, [filteredGames, games.length, players]);
 
+  const rankedDashboardPlayers = useMemo(() => {
+    return [...filteredPlayers].sort((a: any, b: any) => {
+      const eloA = Number(a.elo ?? 0);
+      const eloB = Number(b.elo ?? 0);
+
+      if (eloB !== eloA) return eloB - eloA;
+
+      const winRateA = Number(a.winRate ?? 0);
+      const winRateB = Number(b.winRate ?? 0);
+
+      if (winRateB !== winRateA) return winRateB - winRateA;
+
+      const avgScoreA = Number(a.avgScore ?? a.averageScore ?? 999);
+      const avgScoreB = Number(b.avgScore ?? b.averageScore ?? 999);
+
+      return avgScoreA - avgScoreB;
+    });
+  }, [filteredPlayers]);
+
   const filteredRivalries = rivalries;
-  const champion = filteredPlayers[0];
+  const champion = rankedDashboardPlayers[0];
   const hotRivalry = filteredRivalries[0];
 
   const bestScores = filteredGames
@@ -666,7 +685,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-6 space-y-3">
-              {filteredPlayers.slice(0, 4).map((player: any) => (
+              {rankedDashboardPlayers.slice(0, 4).map((player: any) => (
                 <div
                   key={player.id}
                   className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 p-4"

@@ -1,6 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { format, isValid, parse, startOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import AppShell from "@/components/AppShell";
@@ -9,6 +15,7 @@ import { useSkyjoData } from "@/lib/useSkyjoData";
 
 type Player = {
   id?: string | number;
+  joueurId?: string | number;
   JoueurID?: string | number;
   joueurID?: string | number;
   name?: string;
@@ -35,6 +42,7 @@ type Game = {
 };
 
 type Result = {
+  playerId?: string | number;
   playerName?: string;
   JoueurNom?: string;
   joueurNom?: string;
@@ -467,26 +475,115 @@ function PlayerSelect({
   options: { id: string; name: string }[];
   onChange: (value: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useCloseOnOutsideClick(containerRef, () => setOpen(false));
+
+  const selectedOption = options.find((option) => option.id === value);
+
+  const filteredOptions = options.filter((option) =>
+    option.name.toLowerCase().includes(search.trim().toLowerCase())
+  );
+
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.035] p-2">
+    <div
+      ref={containerRef}
+      className="relative rounded-xl border border-white/10 bg-white/[0.035] p-2"
+    >
       <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
         {label}
       </span>
 
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-lg border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white outline-none transition hover:border-red-400/40 focus:border-red-400/60"
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex h-10 w-full items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/25 px-3 text-left text-sm font-semibold text-white outline-none transition hover:border-red-400/40 focus:border-red-400/60"
       >
-        <option value="">Sélectionner</option>
-        {options.map((player) => (
-          <option key={player.id} value={player.id}>
-            {player.name}
-          </option>
-        ))}
-      </select>
+        <span className={selectedOption ? "truncate" : "truncate text-zinc-500"}>
+          {selectedOption?.name ?? "Sélectionner"}
+        </span>
+
+        <span className="shrink-0 text-xs text-zinc-500">
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-[80] w-full min-w-[280px] overflow-hidden rounded-2xl border border-white/10 bg-[#020617] shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
+          <div className="border-b border-white/10 p-3">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Rechercher un joueur..."
+              className="h-10 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 hover:border-red-400/40 focus:border-red-400/60"
+            />
+          </div>
+
+          <div className="max-h-[240px] overflow-y-auto p-2 [scrollbar-color:rgba(248,113,113,0.55)_rgba(255,255,255,0.05)] [scrollbar-width:thin]"> 
+            {filteredOptions.map((option) => {
+              const selected = option.id === value;
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.id);
+                    setSearch("");
+                    setOpen(false);
+                  }}
+                  className={[
+                    "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition",
+                    selected
+                      ? "bg-red-400/12 text-red-100 ring-1 ring-red-400/25"
+                      : "text-zinc-300 hover:bg-white/[0.06] hover:text-white",
+                  ].join(" ")}
+                >
+                  <span className="truncate">{option.name}</span>
+                  {selected && (
+                    <span className="shrink-0 text-xs text-red-200">✓</span>
+                  )}
+                </button>
+              );
+            })}
+
+            {filteredOptions.length === 0 && (
+              <div className="px-3 py-6 text-center text-sm text-zinc-500">
+                Aucun joueur trouvé.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function useCloseOnOutsideClick(
+  ref: RefObject<HTMLElement | null>,
+  onClose: () => void
+) {
+  useEffect(() => {
+    const handleClick = (event: MouseEvent | TouchEvent) => {
+      const element = ref.current;
+
+      if (!element) return;
+
+      if (!element.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("touchstart", handleClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("touchstart", handleClick);
+    };
+  }, [ref, onClose]);
 }
 
 function EmptyState() {
@@ -1096,7 +1193,7 @@ function buildDuelGames(games: Game[], playerA: string, playerB: string): DuelGa
     duelGames.push(duelGame);
   });
 
-  return duelGames.sort((a, b) => a.timestamp - b.timestamp);
+  return duelGames.sort((a, b) => b.timestamp - a.timestamp);
 }
 
 function buildDuelStats(games: DuelGame[]): DuelStats {
@@ -1158,22 +1255,24 @@ function buildTimeline(games: DuelGame[]): TimelinePoint[] {
   let aWins = 0;
   let bWins = 0;
 
-  return games.map((game) => {
-    if (game.winner === "A") {
-      aWins += 1;
-    }
+  return [...games]
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .map((game) => {
+      if (game.winner === "A") {
+        aWins += 1;
+      }
 
-    if (game.winner === "B") {
-      bWins += 1;
-    }
+      if (game.winner === "B") {
+        bWins += 1;
+      }
 
-    return {
-      label: game.dateLabel,
-      timestamp: game.timestamp,
-      aWins,
-      bWins,
-    };
-  });
+      return {
+        label: game.dateLabel,
+        timestamp: game.timestamp,
+        aWins,
+        bWins,
+      };
+    });
 }
 
 function getDuelWinner(
@@ -1268,7 +1367,7 @@ function normalizeResult(result: Result): NormalizedResult {
 
   return {
     name: name ? String(name) : "",
-    playerId: result.JoueurID ?? result.joueurID,
+    playerId: result.playerId ?? result.JoueurID ?? result.joueurID,
     score,
     position,
     isWinner:
@@ -1285,7 +1384,7 @@ function getPlayerName(player: Player) {
 }
 
 function getPlayerId(player: Player) {
-  return player.id ?? player.JoueurID ?? player.joueurID;
+  return player.joueurId ?? player.id ?? player.JoueurID ?? player.joueurID;
 }
 
 function getPlayerColor(playerKey: string | number) {

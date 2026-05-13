@@ -13,7 +13,7 @@ export default function GameDetailPage() {
 
   const { data, loading } = useSkyjoData();
   const params = useParams();
-  const gameId = Number(params.id);
+  const gameId = String(params.id ?? "");
 
   if (checkingAuth || loading) {
     return (
@@ -25,7 +25,9 @@ export default function GameDetailPage() {
     );
   }
 
-  const game = data.games.find((item: any) => item.id === gameId);
+  const game = data.games.find(
+    (item: any) => String(item.partieId ?? item.id) === gameId
+  );
 
   if (!game) {
     return (
@@ -165,7 +167,14 @@ export default function GameDetailPage() {
 
               <tbody className="divide-y divide-white/10">
                 {[...(game.results ?? [])]
-                  .sort((a: any, b: any) => a.position - b.position)
+                  .sort((a: any, b: any) => {
+                    const positionA = Number(a.position ?? 999);
+                    const positionB = Number(b.position ?? 999);
+
+                    if (positionA !== positionB) return positionA - positionB;
+
+                    return Number(a.score ?? 999) - Number(b.score ?? 999);
+                  })
                   .map((result: any) => (
                     <tr
                       key={`${result.playerId}-${result.position}`}

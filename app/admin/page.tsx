@@ -100,6 +100,12 @@ type PlayerOverride = {
   updated_by_email?: string | null;
 };
 
+type ProfileRow = {
+  user_id: string;
+  email: string;
+  role: string;
+};
+
 type PlayerOverrideForm = {
   displayName: string;
   email: string;
@@ -163,6 +169,7 @@ export default function AdminPage() {
   const [playerSearch, setPlayerSearch] = useState("");
   const [playerFilter, setPlayerFilter] = useState<PlayerFilter>("all");
   const [playerOverrides, setPlayerOverrides] = useState<Record<string, PlayerOverride>>({});
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerAuditRow | null>(null);
   const [savingPlayer, setSavingPlayer] = useState(false);
   const [playerSaveMessage, setPlayerSaveMessage] = useState("");
@@ -204,6 +211,7 @@ export default function AdminPage() {
       await fetchImportMetadata();
       await fetchAdminLogs();
       await fetchPlayerOverrides();
+      await fetchProfiles();
     };
 
     if (!checkingAuth) {
@@ -266,10 +274,13 @@ export default function AdminPage() {
   const fetchPlayerOverrides = async () => {
     const { data, error } = await supabase
       .from("skyjo_player_overrides")
-      .select("joueur_id, display_name, email, status, role, updated_at, updated_by_email");
+      .select(
+        "joueur_id, display_name, email, status, role, updated_at, updated_by_email"
+      );
 
     if (error) {
       console.warn("Table skyjo_player_overrides absente ou inaccessible :", error);
+      setPlayerOverrides({});
       return;
     }
 
@@ -277,6 +288,7 @@ export default function AdminPage() {
 
     (data ?? []).forEach((override: any) => {
       if (!override.joueur_id) return;
+
       nextOverrides[String(override.joueur_id)] = {
         joueur_id: String(override.joueur_id),
         display_name: override.display_name ?? null,
@@ -291,6 +303,26 @@ export default function AdminPage() {
     setPlayerOverrides(nextOverrides);
   };
 
+  const fetchProfiles = async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("user_id, email, role");
+
+    if (error) {
+      console.warn("Table profiles absente ou inaccessible :", error);
+      setProfiles([]);
+      return;
+    }
+
+    setProfiles(
+      (data ?? []).map((profile: any) => ({
+        user_id: String(profile.user_id ?? ""),
+        email: String(profile.email ?? "").trim().toLowerCase(),
+        role: String(profile.role ?? "user"),
+      }))
+    );
+  };
+
   const handleRefreshDataset = async () => {
     setRefreshingDataset(true);
     setRefreshMessage("");
@@ -299,6 +331,7 @@ export default function AdminPage() {
       await fetchImportMetadata();
       await fetchAdminLogs();
       await fetchPlayerOverrides();
+      await fetchProfiles();
 
       await writeAdminLog(
         "Dataset rafraîchi",
@@ -437,8 +470,10 @@ export default function AdminPage() {
   }, [pendingImport]);
 
   const playerAuditRows = useMemo(() => {
-    return mappedData ? buildPlayerAuditRows(mappedData, playerOverrides) : [];
-  }, [mappedData, playerOverrides]);
+    return mappedData
+      ? buildPlayerAuditRows(mappedData, playerOverrides, profiles)
+      : [];
+  }, [mappedData, playerOverrides, profiles]);
 
   const filteredPlayerAuditRows = useMemo(() => {
     const query = playerSearch.trim().toLowerCase();
@@ -453,7 +488,7 @@ export default function AdminPage() {
       }
 
       if (playerFilter === "duplicates") return player.duplicateGroupSize > 1;
-      if (playerFilter === "unlinked") return !player.email || player.email === "—";
+      if (playerFilter === "unlinked") return player.status === "Non lié";
       if (playerFilter === "inactive") return player.status === "Inactif";
 
       return true;
@@ -464,7 +499,7 @@ export default function AdminPage() {
     (player) => player.duplicateGroupSize > 1
   ).length;
   const unlinkedPlayerCount = playerAuditRows.filter(
-    (player) => !player.email || player.email === "—"
+    (player) => player.status === "Non lié"
   ).length;
 
   const computedLogs = useMemo<AdminLog[]>(() => {
@@ -592,38 +627,84 @@ export default function AdminPage() {
     setImportError("");
 
     try {
-      const { error } = await supabase.from("skyjo_dataset").upsert({
-        id: "active",
-        data: pendingImport.appData,
-        updated_at: pendingImport.updatedAt,
-        file_name: pendingImport.fileName,
-        updated_by_email: userEmail ?? null,
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        setImportError("Session expirée. Reconnecte-toi avant d’importer.");
+        return;
+      }
+
+      const response = await fetch("/api/admin/import-skyjo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          fileName: pendingImport.fileName,
+          updatedAt: pendingImport.updatedAt,
+          updatedByEmail: userEmail ?? null,
+          rawData: pendingImport.rawData,
+          appData: pendingImport.appData,
+        }),
       });
 
-      if (error) {
-        console.error("Erreur sauvegarde Supabase :", error);
+      const result = await response.json();
+
+      if (!response.ok) {
         setImportError(
-          "Import lu correctement, mais sauvegarde Supabase impossible. Vérifie les droits admin/RLS et les colonnes file_name / updated_by_email."
+          result?.error ??
+            "Import lu correctement, mais sauvegarde relationnelle impossible."
         );
         return;
       }
 
       setMappedData(pendingImport.appData);
       setRawExcelData(pendingImport.rawData);
+
       setImportMetadata({
         fileName: pendingImport.fileName,
         updatedAt: pendingImport.updatedAt,
         updatedByEmail: userEmail ?? null,
       });
 
-      setImportSuccess("Dataset actif remplacé avec succès.");
+      const summary = result.summary;
+
+      setImportSuccess(
+        `Import relationnel réussi : ${summary.players} joueurs, ${summary.games} parties, ${summary.results} résultats.`
+      );
+
+      if (summary.warnings?.length > 0) {
+        console.warn(
+          "Import Skyjo - warnings :",
+          summary.warnings
+        );
+      }
+
+      if (summary.ignoredResults?.length > 0) {
+        console.warn(
+          "Import Skyjo - résultats ignorés :",
+          summary.ignoredResults
+        );
+      }
+
       await writeAdminLog(
         "Import Excel confirmé",
-        `${pendingImport.fileName} a remplacé le dataset actif.`,
+        `${pendingImport.fileName} a remplacé le dataset actif et les tables relationnelles.`,
         pendingQualityIssues.length > 0 ? "amber" : "emerald"
       );
 
       setPendingImport(null);
+    } catch (error) {
+      console.error(error);
+
+      setImportError(
+        error instanceof Error
+          ? error.message
+          : "Erreur inconnue pendant l’import relationnel."
+      );
     } finally {
       setConfirmingImport(false);
     }
@@ -2305,7 +2386,8 @@ function buildIssueDetail(
 
 function buildPlayerAuditRows(
   data: MappedSkyjoData,
-  overrides: Record<string, PlayerOverride>
+  overrides: Record<string, PlayerOverride>,
+  profiles: ProfileRow[]
 ): PlayerAuditRow[] {
   const games = (data.games ?? []) as any[];
   const stats = new Map<
@@ -2350,6 +2432,11 @@ function buildPlayerAuditRows(
 
   const players = (data.players ?? []) as any[];
   const normalizedCounts = new Map<string, number>();
+  const profileByEmail = new Map(
+    profiles
+      .filter((profile) => profile.email)
+      .map((profile) => [profile.email.toLowerCase(), profile])
+  );
 
   players.forEach((player) => {
     const name = getPlayerName(player);
@@ -2380,6 +2467,8 @@ function buildPlayerAuditRows(
         player.email ?? player.Email ?? player.mail ?? player.Mail ?? ""
       ).trim();
       const email = normalizeOptionalText(override?.email) || sourceEmail || "—";
+      const linkedProfile =
+        email !== "—" ? profileByEmail.get(email.toLowerCase()) : undefined;
       const resolvedName =
         normalizeOptionalText(override?.display_name) || name || "Joueur sans nom";
       const inferredStatus = inferPlayerAuditStatus(
@@ -2388,8 +2477,12 @@ function buildPlayerAuditRows(
         lastActivityTimestamp,
         email
       );
-      const resolvedStatus = normalizePlayerStatus(override?.status) ?? inferredStatus;
-      const resolvedRole = normalizePlayerRole(override?.role);
+      const resolvedStatus =
+        normalizePlayerStatus(override?.status) ??
+        (linkedProfile ? inferredStatus : "Non lié");
+      const resolvedRole = normalizePlayerRole(
+        override?.role ?? linkedProfile?.role
+      );
 
       return {
         id,
