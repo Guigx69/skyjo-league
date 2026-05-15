@@ -171,7 +171,6 @@ export default function AdminPage() {
     useState<PlayerAuditRow | null>(null);
   const [savingPlayer, setSavingPlayer] = useState(false);
   const [playerSaveMessage, setPlayerSaveMessage] = useState("");
-  const [testingNotifications, setTestingNotifications] = useState(false);
 
   const [importMetadata, setImportMetadata] = useState<ImportMetadata>({
     fileName: null,
@@ -323,45 +322,6 @@ export default function AdminPage() {
         role: String(profile.role ?? "user"),
       }))
     );
-  };
-
-  const testNotifications = async () => {
-    setTestingNotifications(true);
-
-    try {
-      const response = await fetch("/api/notifications/process", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET}`,
-        },
-      });
-
-      const data = await response.json();
-
-      console.log("Résultat test notifications :", data);
-
-      alert(
-        `${data.message}
-
-Parties : ${data.gamesCount ?? 0}
-Destinataires : ${data.recipientsCount ?? 0}`
-      );
-
-      if (data.success) {
-        await writeAdminLog(
-          "Notifications testées",
-          `Test notifications exécuté (${
-            data.recipientsCount ?? 0
-          } destinataires).`,
-          "blue"
-        );
-      }
-    } catch (error) {
-      console.error("Erreur notifications :", error);
-      alert("Erreur pendant le test des notifications.");
-    } finally {
-      setTestingNotifications(false);
-    }
   };
 
   const handleRefreshDataset = async () => {
@@ -1237,7 +1197,7 @@ Destinataires : ${data.recipientsCount ?? 0}`
               />
             </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={handleRefreshDataset}
@@ -1254,15 +1214,6 @@ Destinataires : ${data.recipientsCount ?? 0}`
                 className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white/[0.04] disabled:hover:text-zinc-300"
               >
                 Télécharger backup
-              </button>
-
-              <button
-                type="button"
-                onClick={testNotifications}
-                disabled={testingNotifications}
-                className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-cyan-400/10 disabled:hover:text-cyan-100"
-              >
-                {testingNotifications ? "Test..." : "Tester notifications"}
               </button>
             </div>
 
