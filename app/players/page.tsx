@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import { useAuthRedirect } from "@/hooks/useAuthRedirect";
 import { useSkyjoData } from "@/lib/useSkyjoData";
+import { supabase } from "@/lib/supabase";
 
 export default function PlayersPage() {
   const { checkingAuth } = useAuthRedirect({
@@ -11,6 +13,20 @@ export default function PlayersPage() {
   });
 
   const { data, loading } = useSkyjoData();
+
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    async function loadRole() {
+      const { data } = await supabase.rpc(
+        "is_current_user_admin"
+      );
+
+      setIsAdmin(data === true);
+    }
+
+    loadRole();
+  }, []);
 
   if (checkingAuth || loading) {
     return (
@@ -106,13 +122,23 @@ export default function PlayersPage() {
                 <Stat label="Best score" value={player.bestScore} />
               </div>
 
-              {/* BOUTON FICHE DETAILLEE */}
-              <Link
-                href={`/players/${player.joueurId ?? player.id}`}
-                className="mt-6 block w-full rounded-2xl border border-white/10 px-4 py-3 text-center text-sm font-medium text-zinc-300 transition hover:bg-white hover:text-slate-950"
-              >
-                Voir la fiche détaillée
-              </Link>
+              <div className="mt-6 flex gap-3">
+                <Link
+                  href={`/players/${player.joueurId ?? player.id}`}
+                  className="flex-1 rounded-2xl border border-white/10 px-4 py-3 text-center text-sm font-medium text-zinc-300 transition hover:bg-white hover:text-slate-950"
+                >
+                  Voir la fiche
+                </Link>
+
+                {isAdmin && (
+                  <Link
+                    href={`/players/${player.joueurId ?? player.id}/edit`}
+                    className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-5 py-3 text-sm font-medium text-amber-200 transition hover:bg-amber-400 hover:text-slate-950"
+                  >
+                    Modifier
+                  </Link>
+                )}
+              </div>
             </article>
           ))}
         </section>

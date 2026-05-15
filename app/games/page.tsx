@@ -142,45 +142,49 @@ export default function GamesPage() {
                           </th>
                         </tr>
 
-                        {group.games.map((game: any) => (
-                          <tr
-                            key={game.id}
-                            className="bg-black/10 transition hover:bg-white/[0.04]"
-                          >
-                            <td className="px-4 py-4 text-zinc-400">
-                              {game.partieId}
-                            </td>
+                        {group.games.map((game: any) => {
+                          const winnerDisplay = getWinnerDisplay(game);
 
-                            <td className="px-4 py-4 text-zinc-300">
-                              {game.location}
-                            </td>
+                          return (
+                            <tr
+                              key={game.id}
+                              className="bg-black/10 transition hover:bg-white/[0.04]"
+                            >
+                              <td className="px-4 py-4 text-zinc-400">
+                                {game.partieId}
+                              </td>
 
-                            <td className="px-4 py-4 text-zinc-300">
-                              {game.players}
-                            </td>
+                              <td className="px-4 py-4 text-zinc-300">
+                                {game.location}
+                              </td>
 
-                            <td className="px-4 py-4 font-medium text-white">
-                              {game.winner}
-                            </td>
+                              <td className="px-4 py-4 text-zinc-300">
+                                {game.players}
+                              </td>
 
-                            <td className="px-4 py-4 text-emerald-300">
-                              {game.bestScore}
-                            </td>
+                              <td className="px-4 py-4 font-medium text-white">
+                                {winnerDisplay}
+                              </td>
 
-                            <td className="px-4 py-4 text-red-300">
-                              {game.worstScore}
-                            </td>
+                              <td className="px-4 py-4 text-emerald-300">
+                                {game.bestScore}
+                              </td>
 
-                            <td className="px-4 py-4 text-right">
-                              <Link
-                                href={`/games/${game.partieId ?? game.id}`}
-                                className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white hover:text-slate-950"
-                              >
-                                Voir la partie
-                              </Link>
-                            </td>
-                          </tr>
-                        ))}
+                              <td className="px-4 py-4 text-red-300">
+                                {game.worstScore}
+                              </td>
+
+                              <td className="px-4 py-4 text-right">
+                                <Link
+                                  href={`/games/${game.partieId ?? game.id}`}
+                                  className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white hover:text-slate-950"
+                                >
+                                  Voir la partie
+                                </Link>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </Fragment>
                     ))}
                   </tbody>
@@ -201,6 +205,39 @@ function KpiCard({ title, value }: { title: string; value: string | number }) {
       <p className="mt-3 text-4xl font-semibold text-white">{value}</p>
     </div>
   );
+}
+
+function getWinnerDisplay(game: any) {
+  if (Array.isArray(game.winners) && game.winners.length > 0) {
+    if (game.winners.length === 1) return game.winners[0];
+
+    return `${game.winners.length} ex æquo`;
+  }
+
+  if (Array.isArray(game.results) && game.results.length > 0) {
+    const validResults = game.results.filter((result: any) => {
+      const score = Number(result.score);
+      return Number.isFinite(score);
+    });
+
+    if (validResults.length === 0) return game.winner ?? "—";
+
+    const bestScore = Math.min(
+      ...validResults.map((result: any) => Number(result.score))
+    );
+
+    const winners = validResults.filter(
+      (result: any) => Number(result.score) === bestScore
+    );
+
+    if (winners.length === 1) {
+      return winners[0].playerName ?? winners[0].player_name ?? game.winner ?? "—";
+    }
+
+    return `${winners.length} ex æquo`;
+  }
+
+  return game.winner ?? "—";
 }
 
 function getMaxPlayers(games: any[]) {

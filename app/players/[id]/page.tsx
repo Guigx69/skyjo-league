@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { Pencil } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import { supabase } from "@/lib/supabase";
 import { useAuthRedirect } from "@/hooks/useAuthRedirect";
 import { useSkyjoData } from "@/lib/useSkyjoData";
 
@@ -15,7 +18,36 @@ export default function PlayerDetailPage() {
   const params = useParams();
   const playerId = String(params.id ?? "");
 
-  if (checkingAuth || loading) {
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
+
+  useEffect(() => {
+    if (checkingAuth) return;
+
+    async function checkAdmin() {
+      try {
+        setCheckingAdmin(true);
+
+        const { data: adminResult, error } = await supabase.rpc(
+          "is_current_user_admin"
+        );
+
+        if (error) {
+          console.error("Erreur vérification admin :", error);
+          setIsAdmin(false);
+          return;
+        }
+
+        setIsAdmin(adminResult === true);
+      } finally {
+        setCheckingAdmin(false);
+      }
+    }
+
+    checkAdmin();
+  }, [checkingAuth]);
+
+  if (checkingAuth || loading || checkingAdmin) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#020617] text-white">
         <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-4 text-sm text-zinc-300">
@@ -36,9 +68,11 @@ export default function PlayerDetailPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-red-300">
             Joueur introuvable
           </p>
+
           <h1 className="mt-4 text-3xl font-semibold text-white">
             Cette fiche joueur n’existe pas.
           </h1>
+
           <Link
             href="/players"
             className="mt-6 inline-block rounded-2xl border border-white/10 px-4 py-3 text-sm font-medium text-zinc-200 transition hover:bg-white hover:text-slate-950"
@@ -49,19 +83,24 @@ export default function PlayerDetailPage() {
       </AppShell>
     );
   }
-  
-  const allPlayerGames = data.games.filter((game: any) =>
-    Array.isArray(game.results) &&
-    game.results.some(
-      (result: any) =>
-        result.playerName === player.name ||
-        String(result.playerId) === String(player.joueurId)
-    )
+
+  const allPlayerGames = data.games.filter(
+    (game: any) =>
+      Array.isArray(game.results) &&
+      game.results.some(
+        (result: any) =>
+          result.playerName === player.name ||
+          String(result.playerId) === String(player.joueurId)
+      )
   );
 
-  const playerGames = allPlayerGames.filter(
-    (game: any) => game.winner === player.name
-  );
+  const playerGames = allPlayerGames.filter((game: any) => {
+    if (Array.isArray(game.winners)) {
+      return game.winners.includes(player.name);
+    }
+
+    return game.winner === player.name;
+  });
 
   const playerRivalries = data.rivalries.filter(
     (rivalry: any) =>
@@ -75,12 +114,24 @@ export default function PlayerDetailPage() {
           <div className="absolute right-[-80px] top-[-80px] h-56 w-56 rounded-full bg-blue-500/20 blur-3xl" />
 
           <div className="relative">
-            <Link
-              href="/players"
-              className="text-sm font-medium text-blue-300 hover:text-blue-200"
-            >
-              ← Retour aux joueurs
-            </Link>
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+              <Link
+                href="/players"
+                className="text-sm font-medium text-blue-300 hover:text-blue-200"
+              >
+                ← Retour aux joueurs
+              </Link>
+
+              {isAdmin && (
+                <Link
+                  href={`/players/${playerId}/edit`}
+                  className="group inline-flex w-fit items-center gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:border-cyan-200/50 hover:bg-cyan-300 hover:text-slate-950"
+                >
+                  <Pencil className="h-4 w-4 transition group-hover:rotate-[-8deg]" />
+                  Modifier le joueur
+                </Link>
+              )}
+            </div>
 
             <p className="mt-8 text-xs font-semibold uppercase tracking-[0.35em] text-blue-300/80">
               Fiche joueur
@@ -96,9 +147,11 @@ export default function PlayerDetailPage() {
               <span className="rounded-full border border-blue-400/20 bg-blue-400/10 px-4 py-2 text-xs font-medium text-blue-200">
                 {player.status}
               </span>
+
               <span className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-medium text-zinc-300">
                 Rang #{player.rank}
               </span>
+
               <span className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-medium text-zinc-300">
                 Forme · {player.form}
               </span>

@@ -151,6 +151,51 @@ export default function NewGamePage() {
         return;
       }
 
+      /* ========================= */
+      /* GESTION BATCH NOTIFICATION */
+      /* ========================= */
+
+      const { data: batch } = await supabase
+        .from("skyjo_notification_batches")
+        .select("*")
+        .eq("status", "open")
+        .maybeSingle();
+
+      if (!batch) {
+        const { error: createBatchError } = await supabase
+          .from("skyjo_notification_batches")
+          .insert({
+            status: "open",
+            first_game_added_at: new Date().toISOString(),
+            last_game_added_at: new Date().toISOString(),
+          });
+
+        if (createBatchError) {
+          console.error(
+            "Erreur création batch notification :",
+            createBatchError
+          );
+        }
+      } else {
+        const { error: updateBatchError } = await supabase
+          .from("skyjo_notification_batches")
+          .update({
+            last_game_added_at: new Date().toISOString(),
+          })
+          .eq("id", batch.id);
+
+        if (updateBatchError) {
+          console.error(
+            "Erreur mise à jour batch notification :",
+            updateBatchError
+          );
+        }
+      }
+
+      /* ========================= */
+      /* FIN BATCH NOTIFICATION */
+      /* ========================= */
+
       setSuccessMessage("La partie a été créée avec succès.");
 
       router.push(`/games/${data.id}/results`);

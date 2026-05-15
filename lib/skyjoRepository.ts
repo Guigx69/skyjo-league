@@ -18,10 +18,7 @@ export interface SkyjoRepository {
 }
 
 function toDataSourceMode(raw: string | undefined): SkyjoDataSourceMode {
-  if (raw === "legacy" || raw === "relational" || raw === "hybrid") {
-    return raw;
-  }
-
+  if (raw === "legacy" || raw === "relational" || raw === "hybrid") return raw;
   return "legacy";
 }
 
@@ -42,9 +39,7 @@ function getServerSupabaseClient() {
 }
 
 function toNumber(value: unknown): number | undefined {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : undefined;
-  }
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
 
   if (typeof value === "string") {
     const parsed = Number(value.replace(",", "."));
@@ -66,10 +61,7 @@ function formatDateFr(value: string | null | undefined): string {
   if (!value) return "Date inconnue";
 
   const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
+  if (Number.isNaN(date.getTime())) return String(value);
 
   return date.toLocaleDateString("fr-FR");
 }
@@ -78,7 +70,6 @@ function getDateTimestamp(value: string | null | undefined): number {
   if (!value) return 0;
 
   const timestamp = new Date(value).getTime();
-
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
@@ -117,10 +108,9 @@ function getSeasonFromDate(value: string | null | undefined) {
 
   const monthsSinceApril2026 = (year - 2026) * 12 + (month - 4);
   const seasonIndex = Math.floor(monthsSinceApril2026 / 3) + 1;
-  const seasonId = `S${String(seasonIndex).padStart(2, "0")}`;
 
   return {
-    seasonId,
+    seasonId: `S${String(seasonIndex).padStart(2, "0")}`,
     seasonName: `Saison ${String(seasonIndex).padStart(2, "0")}`,
     seasonPeriod: `Trimestre ${seasonIndex}`,
     sortIndex: seasonIndex,
@@ -128,9 +118,7 @@ function getSeasonFromDate(value: string | null | undefined) {
 }
 
 function normalizeResult(result: any) {
-  const player = result.player && typeof result.player === "object"
-    ? result.player
-    : null;
+  const player = result.player && typeof result.player === "object" ? result.player : null;
 
   const name =
     result.playerName ??
@@ -150,12 +138,7 @@ function normalizeResult(result: any) {
 
   return {
     name: name ? String(name).trim() : "",
-    playerId: asText(
-      result.playerId ??
-        result.player_id ??
-        player?.joueur_id ??
-        player?.id
-    ),
+    playerId: asText(result.playerId ?? result.player_id ?? player?.joueur_id ?? player?.id),
     score,
     position,
     isWinner:
@@ -169,18 +152,15 @@ function normalizeResult(result: any) {
 }
 
 function getDuelWinner(playerA: any, playerB: any) {
-  if (playerA.isWinner && !playerB.isWinner) return playerA.name;
-  if (playerB.isWinner && !playerA.isWinner) return playerB.name;
+  if (typeof playerA.score === "number" && typeof playerB.score === "number") {
+    if (playerA.score < playerB.score) return playerA.name;
+    if (playerB.score < playerA.score) return playerB.name;
+    return null;
+  }
 
   if (typeof playerA.position === "number" && typeof playerB.position === "number") {
     if (playerA.position < playerB.position) return playerA.name;
     if (playerB.position < playerA.position) return playerB.name;
-    return null;
-  }
-
-  if (typeof playerA.score === "number" && typeof playerB.score === "number") {
-    if (playerA.score < playerB.score) return playerA.name;
-    if (playerB.score < playerA.score) return playerB.name;
     return null;
   }
 
@@ -197,11 +177,9 @@ function buildRivalriesFromGames(games: any[]) {
   const rivalryMap = new Map<string, any>();
 
   games.forEach((game) => {
-    const results = Array.isArray(game.results) ? game.results : [];
-
-    const normalizedResults = results
-      .map((result: any) => normalizeResult(result))
-      .filter((result: any) => result.name);
+    const normalizedResults = Array.isArray(game.results)
+      ? game.results.map((result: any) => normalizeResult(result)).filter((result: any) => result.name)
+      : [];
 
     if (normalizedResults.length < 2) return;
 
@@ -254,17 +232,16 @@ function buildRivalriesFromGames(games: any[]) {
     })
     .sort((a, b) => {
       if (b.games !== a.games) return b.games - a.games;
-
       return Math.abs(b.winsA - b.winsB) - Math.abs(a.winsA - a.winsB);
     });
 }
 
 function normalizePlayer(player: any, index: number, statsByJoueurId: Map<string, any>) {
-  const joueurId = asText(player.joueur_id);
+  const joueurId = asText(player.joueur_id ?? player.id);
   const stats = statsByJoueurId.get(joueurId);
 
   return {
-    id: index + 1,
+    id: joueurId,
     joueurId,
     rank: index + 1,
     name: asText(player.display_name),
@@ -272,6 +249,7 @@ function normalizePlayer(player: any, index: number, statsByJoueurId: Map<string
     elo: 1000,
     winRate: stats?.games ? Math.round((stats.wins / stats.games) * 100) : 0,
     games: stats?.games ?? 0,
+    wins: stats?.wins ?? 0,
     avgScore: stats?.games ? Math.round(stats.totalScore / stats.games) : 0,
     bestScore: stats?.bestScore ?? 0,
     form: "—",
@@ -280,27 +258,53 @@ function normalizePlayer(player: any, index: number, statsByJoueurId: Map<string
   };
 }
 
-function normalizeGame(game: any, index: number) {
-  const results = Array.isArray(game.results)
-    ? game.results
-        .map((result: any) => {
-          const player = result.player;
+function rankResults(results: any[]) {
+  const sortedResults = [...results].sort((a, b) => {
+    if (a.score !== b.score) return a.score - b.score;
+    return a.playerName.localeCompare(b.playerName, "fr");
+  });
 
-          return {
-            playerId: asText(player?.joueur_id ?? result.player_id),
-            playerName: asText(player?.display_name),
-            score: numberOrZero(result.score),
-            position: numberOrZero(result.position),
-          };
-        })
-        .sort((a: any, b: any) => {
-          if (a.position !== b.position) return a.position - b.position;
-          return a.score - b.score;
-        })
+  let previousScore: number | null = null;
+  let previousPosition = 0;
+
+  return sortedResults.map((result, index) => {
+    const position =
+      previousScore !== null && result.score === previousScore
+        ? previousPosition
+        : index + 1;
+
+    previousScore = result.score;
+    previousPosition = position;
+
+    return {
+      ...result,
+      position,
+    };
+  });
+}
+
+function normalizeGame(game: any, index: number) {
+  const rawResults = Array.isArray(game.results)
+    ? game.results.map((result: any) => {
+        const player = result.player;
+
+        return {
+          playerId: asText(player?.joueur_id ?? player?.id ?? result.player_id),
+          playerName: asText(player?.display_name),
+          score: numberOrZero(result.score),
+          position: numberOrZero(result.position),
+        };
+      })
     : [];
 
+  const results = rankResults(rawResults);
+
   const scores = results.map((result: any) => result.score);
-  const winner = results.find((result: any) => result.position === 1)?.playerName ?? "";
+  const bestScore = scores.length ? Math.min(...scores) : 0;
+  const worstScore = scores.length ? Math.max(...scores) : 0;
+
+  const winners = results.filter((result: any) => result.score === bestScore);
+  const winnerNames = winners.map((winner: any) => winner.playerName).filter(Boolean);
 
   const season = getSeasonFromDate(game.played_at);
 
@@ -313,9 +317,15 @@ function normalizeGame(game: any, index: number) {
     sortIndex: index + 1,
     location: asText(game.location),
     players: results.length,
-    winner,
-    bestScore: scores.length ? Math.min(...scores) : 0,
-    worstScore: scores.length ? Math.max(...scores) : 0,
+    winner:
+      winnerNames.length === 0
+        ? ""
+        : winnerNames.length === 1
+          ? winnerNames[0]
+          : `${winnerNames.length} ex æquo`,
+    winners: winnerNames,
+    bestScore,
+    worstScore,
     status: "Terminée",
     seasonId: season.seasonId,
     seasonName: season.seasonName,
@@ -329,6 +339,15 @@ function buildPlayerStatsFromGames(games: any[]) {
 
   games.forEach((game) => {
     const results = Array.isArray(game.results) ? game.results : [];
+    if (results.length === 0) return;
+
+    const scores = results
+      .map((result: any) => Number(result.score))
+      .filter((score: number) => Number.isFinite(score));
+
+    if (scores.length === 0) return;
+
+    const bestScore = Math.min(...scores);
 
     results.forEach((result: any) => {
       const joueurId = asText(result.playerId);
@@ -344,16 +363,17 @@ function buildPlayerStatsFromGames(games: any[]) {
       }
 
       const row = stats.get(joueurId);
+      const score = numberOrZero(result.score);
 
       row.games += 1;
-      row.totalScore += numberOrZero(result.score);
+      row.totalScore += score;
 
-      if (result.position === 1) {
+      if (score === bestScore) {
         row.wins += 1;
       }
 
-      if (row.bestScore === null || result.score < row.bestScore) {
-        row.bestScore = result.score;
+      if (row.bestScore === null || score < row.bestScore) {
+        row.bestScore = score;
       }
     });
   });
@@ -430,23 +450,19 @@ export const legacyJsonRepository: SkyjoRepository = {
 
 export const relationalRepository: SkyjoRepository = {
   async getPlayers() {
-    const dataset = await this.getFullDataset();
-    return dataset.players;
+    return (await this.getFullDataset()).players;
   },
 
   async getGames() {
-    const dataset = await this.getFullDataset();
-    return dataset.games;
+    return (await this.getFullDataset()).games;
   },
 
   async getRivalries() {
-    const dataset = await this.getFullDataset();
-    return dataset.rivalries;
+    return (await this.getFullDataset()).rivalries;
   },
 
   async getSeasons() {
-    const dataset = await this.getFullDataset();
-    return dataset.seasons;
+    return (await this.getFullDataset()).seasons;
   },
 
   async getFullDataset() {
@@ -467,10 +483,7 @@ export const relationalRepository: SkyjoRepository = {
 
     if (gamesError) throw gamesError;
 
-    const games = (rawGames ?? []).map((game, index) =>
-      normalizeGame(game, index)
-    );
-
+    const games = (rawGames ?? []).map((game, index) => normalizeGame(game, index));
     const statsByJoueurId = buildPlayerStatsFromGames(games);
 
     const { data: rawPlayers, error: playersError } = await supabase
@@ -514,10 +527,7 @@ export const hybridRepository: SkyjoRepository = {
     try {
       const relationalDataset = await relationalRepository.getFullDataset();
 
-      if (
-        relationalDataset.players.length > 0 &&
-        relationalDataset.games.length > 0
-      ) {
+      if (relationalDataset.players.length > 0 && relationalDataset.games.length > 0) {
         return relationalDataset;
       }
     } catch (error) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import AppShell from "@/components/AppShell";
 import { useAuthRedirect } from "@/hooks/useAuthRedirect";
@@ -10,6 +10,9 @@ export default function NewPlayerPage() {
     requireAuth: true,
   });
 
+  const [checkingRole, setCheckingRole] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
   const [playerName, setPlayerName] = useState("");
   const [teamService, setTeamService] = useState("");
   const [nameError, setNameError] = useState("");
@@ -17,10 +20,42 @@ export default function NewPlayerPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [globalError, setGlobalError] = useState("");
 
+  useEffect(() => {
+    if (checkingAuth) return;
+
+    async function checkAdminRole() {
+      try {
+        setCheckingRole(true);
+
+        const { data: adminResult, error } = await supabase.rpc(
+          "is_current_user_admin"
+        );
+
+        if (error) {
+          console.error("Erreur vérification admin :", error);
+          setIsAdmin(false);
+          setGlobalError("Impossible de vérifier les droits administrateur.");
+          return;
+        }
+
+        setIsAdmin(adminResult === true);
+      } finally {
+        setCheckingRole(false);
+      }
+    }
+
+    checkAdminRole();
+  }, [checkingAuth]);
+
   const handleSubmit = async () => {
     setSuccessMessage("");
     setGlobalError("");
     setNameError("");
+
+    if (!isAdmin) {
+      setGlobalError("Accès refusé. Seul un administrateur peut créer un joueur.");
+      return;
+    }
 
     const trimmedName = playerName.trim();
     const trimmedService = teamService.trim();
@@ -32,6 +67,11 @@ export default function NewPlayerPage() {
 
     if (trimmedName.length > 60) {
       setNameError("Le nom ne peut pas dépasser 60 caractères.");
+      return;
+    }
+
+    if (trimmedService.length > 50) {
+      setGlobalError("Le service / team ne peut pas dépasser 50 caractères.");
       return;
     }
 
@@ -69,11 +109,31 @@ export default function NewPlayerPage() {
     }
   };
 
-  if (checkingAuth) {
+  if (checkingAuth || checkingRole) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#020617] text-white">
         Chargement...
       </main>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-3xl rounded-[1.75rem] border border-red-400/20 bg-red-400/10 p-6 text-red-100">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-red-300">
+            Accès refusé
+          </p>
+
+          <h1 className="mt-4 text-2xl font-semibold text-white">
+            Droits administrateur requis
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-red-100/80">
+            Seul un administrateur peut créer un joueur.
+          </p>
+        </div>
+      </AppShell>
     );
   }
 
@@ -136,7 +196,11 @@ export default function NewPlayerPage() {
               />
 
               <div className="mt-2 flex items-center justify-between gap-4">
-                <p className={`text-xs ${nameError ? "text-red-300" : "text-zinc-500"}`}>
+                <p
+                  className={`text-xs ${
+                    nameError ? "text-red-300" : "text-zinc-500"
+                  }`}
+                >
                   {nameError ||
                     "Nom affiché dans les classements, rivalités et statistiques."}
                 </p>

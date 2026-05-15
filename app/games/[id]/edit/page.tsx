@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Check, ChevronDown, Trash2, UserPlus } from "lucide-react";
+import { CalendarDays, Check, Search, Trash2, UserPlus, X } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { supabase } from "@/lib/supabase";
@@ -52,6 +52,7 @@ export default function EditGamePage() {
   const [location, setLocation] = useState("");
 
   const [openPlayerSelectId, setOpenPlayerSelectId] = useState<string | null>(null);
+  const [playerSearch, setPlayerSearch] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
@@ -80,13 +81,29 @@ export default function EditGamePage() {
     const winningScore =
       sortedValidResults.length > 0 ? Number(sortedValidResults[0].score) : null;
 
-    return [
-      ...sortedValidResults.map((result, index) => ({
+    let previousScore: number | null = null;
+    let previousPosition = 0;
+
+    const rankedResults = sortedValidResults.map((result, index) => {
+      const currentScore = Number(result.score);
+
+      const position =
+        previousScore !== null && currentScore === previousScore
+          ? previousPosition
+          : index + 1;
+
+      previousScore = currentScore;
+      previousPosition = position;
+
+      return {
         ...result,
-        position: index + 1,
-        is_winner:
-          winningScore !== null && Number(result.score) === winningScore,
-      })),
+        position,
+        is_winner: winningScore !== null && currentScore === winningScore,
+      };
+    });
+
+    return [
+      ...rankedResults,
       ...invalidResults.map((result) => ({
         ...result,
         position: null,
@@ -95,12 +112,33 @@ export default function EditGamePage() {
     ];
   }, [activeResults]);
 
-  const winner = recalculatedResults.find((result) => result.is_winner);
+  const winners = useMemo(
+    () => recalculatedResults.filter((result) => result.is_winner),
+    [recalculatedResults]
+  );
+
+  const winnerLabel =
+    winners.length === 0
+      ? "—"
+      : winners.length === 1
+        ? winners[0].player_name
+        : `${winners.length} ex æquo`;
+
+  const winnerScore = winners.length > 0 ? winners[0].score : "—";
+  const hasTieWinner = winners.length > 1;
 
   const selectedPlayerIds = useMemo(
     () => activeResults.map((result) => result.player_id).filter(Boolean),
     [activeResults]
   );
+
+  const filteredPlayers = useMemo(() => {
+    const search = playerSearch.toLowerCase().trim();
+
+    return players.filter((player) =>
+      player.display_name.toLowerCase().includes(search)
+    );
+  }, [players, playerSearch]);
 
   useEffect(() => {
     if (checkingAuth || !gameId) return;
@@ -283,6 +321,7 @@ export default function EditGamePage() {
     );
 
     setOpenPlayerSelectId(null);
+    setPlayerSearch("");
   }
 
   function addResultRow() {
@@ -419,10 +458,10 @@ export default function EditGamePage() {
           supabase
             .from("skyjo_game_results")
             .update({
-                player_id: result.player_id,
-                score: Number(result.score),
-                position: result.position,
-                updated_at: now,
+              player_id: result.player_id,
+              score: Number(result.score),
+              position: result.position,
+              updated_at: now,
             })
             .eq("id", result.id)
         )
@@ -443,13 +482,13 @@ export default function EditGamePage() {
           .from("skyjo_game_results")
           .insert(
             newResults.map((result) => ({
-                resultat_id: `${game.partie_id}-${result.player_id}`,
-                game_id: game.id,
-                player_id: result.player_id,
-                score: Number(result.score),
-                position: result.position,
-                created_at: now,
-                updated_at: now,
+              resultat_id: `${game.partie_id}-${result.player_id}`,
+              game_id: game.id,
+              player_id: result.player_id,
+              score: Number(result.score),
+              position: result.position,
+              created_at: now,
+              updated_at: now,
             }))
           );
 
@@ -535,7 +574,7 @@ export default function EditGamePage() {
               </button>
 
               {showDatePicker && (
-                <div className="absolute left-0 top-full z-30 mt-2 max-h-72 w-full overflow-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl">
+                <div className="absolute left-0 top-full z-50 mt-2 max-h-72 w-full overflow-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl">
                   {buildDateOptions().map((option) => (
                     <button
                       key={option.value}
@@ -574,8 +613,11 @@ export default function EditGamePage() {
 
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             <MetricCard label="Joueurs" value={activeResults.length} />
-            <MetricCard label="Vainqueur auto" value={winner?.player_name ?? "—"} />
-            <MetricCard label="Score gagnant" value={winner?.score ?? "—"} />
+            <MetricCard
+              label={hasTieWinner ? "Vainqueurs ex æquo" : "Vainqueur auto"}
+              value={winnerLabel}
+            />
+            <MetricCard label="Score gagnant" value={winnerScore} />
           </div>
         </section>
 
@@ -598,7 +640,7 @@ export default function EditGamePage() {
             </button>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-white/10">
+          <div className="rounded-2xl border border-white/10">
             <table className="w-full min-w-[950px] border-collapse">
               <thead className="bg-white/5">
                 <tr className="text-left text-xs uppercase tracking-[0.2em] text-slate-400">
@@ -613,6 +655,7 @@ export default function EditGamePage() {
               <tbody>
                 {recalculatedResults.map((result) => {
                   const scoreMissing = result.score.trim() === "";
+                  const isPlayerSelectOpen = openPlayerSelectId === result.id;
 
                   return (
                     <tr key={result.id} className="border-t border-white/10">
@@ -628,55 +671,107 @@ export default function EditGamePage() {
                         </span>
                       </td>
 
-                      <td className="relative px-4 py-4">
+                      <td className="px-4 py-4">
                         <button
                           type="button"
-                          onClick={() =>
-                            setOpenPlayerSelectId((current) =>
-                              current === result.id ? null : result.id
-                            )
-                          }
+                          onClick={() => {
+                            setOpenPlayerSelectId(result.id);
+                            setPlayerSearch("");
+                          }}
                           className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 text-left text-white transition hover:border-cyan-300/50 hover:bg-white/[0.07]"
                         >
                           <span>{result.player_name || "Sélectionner un joueur"}</span>
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <Search className="h-4 w-4 text-slate-400" />
                         </button>
 
-                        {openPlayerSelectId === result.id && (
-                          <div className="absolute left-4 right-4 top-[calc(100%-0.5rem)] z-30 max-h-72 overflow-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl">
-                            {players.map((player) => {
-                              const alreadySelected =
-                                selectedPlayerIds.includes(player.id) &&
-                                player.id !== result.player_id;
+                        {isPlayerSelectOpen && (
+                          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+                            <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-950 p-4 shadow-2xl">
+                              <div className="mb-4 flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-white">
+                                    Sélectionner un joueur
+                                  </p>
+                                  <p className="text-xs text-slate-500">
+                                    Les joueurs déjà présents sont désactivés.
+                                  </p>
+                                </div>
 
-                              return (
                                 <button
-                                  key={player.id}
                                   type="button"
-                                  disabled={alreadySelected}
-                                  onClick={() =>
-                                    updateResultPlayer(result.id, player.id)
-                                  }
-                                  className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm transition ${
-                                    alreadySelected
-                                      ? "cursor-not-allowed text-slate-600"
-                                      : player.id === result.player_id
-                                        ? "bg-cyan-300/15 text-cyan-200"
-                                        : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
-                                  }`}
+                                  onClick={() => {
+                                    setOpenPlayerSelectId(null);
+                                    setPlayerSearch("");
+                                  }}
+                                  className="rounded-full border border-white/10 bg-white/[0.04] p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
                                 >
-                                  <span>
-                                    {player.display_name}
-                                    {alreadySelected ? " — déjà sélectionné" : ""}
-                                    {!player.is_active ? " — inactif" : ""}
-                                  </span>
-
-                                  {player.id === result.player_id && (
-                                    <Check className="h-4 w-4 text-cyan-200" />
-                                  )}
+                                  <X className="h-4 w-4" />
                                 </button>
-                              );
-                            })}
+                              </div>
+
+                              <div className="relative mb-3">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                                <input
+                                  type="text"
+                                  value={playerSearch}
+                                  onChange={(event) =>
+                                    setPlayerSearch(event.target.value)
+                                  }
+                                  placeholder="Rechercher un joueur..."
+                                  autoFocus
+                                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/60"
+                                />
+                              </div>
+
+                              <div className="max-h-80 overflow-y-auto pr-1">
+                                {filteredPlayers.length === 0 ? (
+                                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">
+                                    Aucun joueur trouvé.
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col gap-2">
+                                    {filteredPlayers.map((player) => {
+                                      const alreadySelected =
+                                        selectedPlayerIds.includes(player.id) &&
+                                        player.id !== result.player_id;
+
+                                      const isSelected =
+                                        player.id === result.player_id;
+
+                                      return (
+                                        <button
+                                          key={player.id}
+                                          type="button"
+                                          disabled={alreadySelected}
+                                          onClick={() =>
+                                            updateResultPlayer(result.id, player.id)
+                                          }
+                                          className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition ${
+                                            alreadySelected
+                                              ? "cursor-not-allowed border border-white/5 bg-white/[0.02] text-slate-600"
+                                              : isSelected
+                                                ? "border border-cyan-300/30 bg-cyan-300/15 text-cyan-200"
+                                                : "border border-white/10 bg-white/[0.04] text-slate-300 hover:border-cyan-300/30 hover:bg-white/[0.08] hover:text-white"
+                                          }`}
+                                        >
+                                          <span>
+                                            {player.display_name}
+                                            {alreadySelected
+                                              ? " — déjà sélectionné"
+                                              : ""}
+                                            {!player.is_active ? " — inactif" : ""}
+                                          </span>
+
+                                          {isSelected && (
+                                            <Check className="h-4 w-4 text-cyan-200" />
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         )}
                       </td>
@@ -706,7 +801,7 @@ export default function EditGamePage() {
                       <td className="px-4 py-4">
                         {result.is_winner ? (
                           <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-                            Vainqueur auto
+                            {hasTieWinner ? "Vainqueur ex æquo" : "Vainqueur auto"}
                           </span>
                         ) : (
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-400">
@@ -756,7 +851,13 @@ export default function EditGamePage() {
   );
 }
 
-function MetricCard({ label, value }: { label: string | number; value: string | number }) {
+function MetricCard({
+  label,
+  value,
+}: {
+  label: string | number;
+  value: string | number;
+}) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
       <p className="text-xs uppercase tracking-[0.2em] text-slate-500">

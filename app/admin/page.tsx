@@ -16,6 +16,7 @@ import {
   mapExcelToSkyjoData,
   type MappedSkyjoData,
 } from "@/lib/excelMappers";
+import { buildSkyjoDatasetHealth } from "@/lib/skyjoDatasetHealth";
 
 type ExcelRawData = {
   joueurs: Record<string, unknown>[];
@@ -36,13 +37,7 @@ type PendingImport = {
   appData: MappedSkyjoData;
 };
 
-type QualityIssueType =
-  | "missing-date"
-  | "missing-results"
-  | "duplicate-players"
-  | "missing-score"
-  | "missing-position"
-  | "several-winners";
+type QualityIssueType = string;
 
 type QualityIssueDetail = {
   gameId: string;
@@ -168,11 +163,15 @@ export default function AdminPage() {
 
   const [playerSearch, setPlayerSearch] = useState("");
   const [playerFilter, setPlayerFilter] = useState<PlayerFilter>("all");
-  const [playerOverrides, setPlayerOverrides] = useState<Record<string, PlayerOverride>>({});
+  const [playerOverrides, setPlayerOverrides] = useState<
+    Record<string, PlayerOverride>
+  >({});
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
-  const [selectedPlayer, setSelectedPlayer] = useState<PlayerAuditRow | null>(null);
+  const [selectedPlayer, setSelectedPlayer] =
+    useState<PlayerAuditRow | null>(null);
   const [savingPlayer, setSavingPlayer] = useState(false);
   const [playerSaveMessage, setPlayerSaveMessage] = useState("");
+  const [testingNotifications, setTestingNotifications] = useState(false);
 
   const [importMetadata, setImportMetadata] = useState<ImportMetadata>({
     fileName: null,
@@ -279,7 +278,10 @@ export default function AdminPage() {
       );
 
     if (error) {
-      console.warn("Table skyjo_player_overrides absente ou inaccessible :", error);
+      console.warn(
+        "Table skyjo_player_overrides absente ou inaccessible :",
+        error
+      );
       setPlayerOverrides({});
       return;
     }
@@ -323,6 +325,45 @@ export default function AdminPage() {
     );
   };
 
+  const testNotifications = async () => {
+    setTestingNotifications(true);
+
+    try {
+      const response = await fetch("/api/notifications/process", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET}`,
+        },
+      });
+
+      const data = await response.json();
+
+      console.log("Résultat test notifications :", data);
+
+      alert(
+        `${data.message}
+
+Parties : ${data.gamesCount ?? 0}
+Destinataires : ${data.recipientsCount ?? 0}`
+      );
+
+      if (data.success) {
+        await writeAdminLog(
+          "Notifications testées",
+          `Test notifications exécuté (${
+            data.recipientsCount ?? 0
+          } destinataires).`,
+          "blue"
+        );
+      }
+    } catch (error) {
+      console.error("Erreur notifications :", error);
+      alert("Erreur pendant le test des notifications.");
+    } finally {
+      setTestingNotifications(false);
+    }
+  };
+
   const handleRefreshDataset = async () => {
     setRefreshingDataset(true);
     setRefreshMessage("");
@@ -340,7 +381,9 @@ export default function AdminPage() {
       );
 
       setRefreshTone("emerald");
-      setRefreshMessage("Dataset, logs et overrides joueurs rafraîchis avec succès.");
+      setRefreshMessage(
+        "Dataset, logs et overrides joueurs rafraîchis avec succès."
+      );
     } catch (error) {
       console.error(error);
       setRefreshTone("red");
@@ -413,7 +456,9 @@ export default function AdminPage() {
 
       if (error) {
         console.error("Erreur sauvegarde override joueur :", error);
-        setPlayerSaveMessage("Sauvegarde impossible. Vérifie les droits RLS sur skyjo_player_overrides.");
+        setPlayerSaveMessage(
+          "Sauvegarde impossible. Vérifie les droits RLS sur skyjo_player_overrides."
+        );
         return;
       }
 
@@ -498,6 +543,7 @@ export default function AdminPage() {
   const duplicatePlayerCount = playerAuditRows.filter(
     (player) => player.duplicateGroupSize > 1
   ).length;
+
   const unlinkedPlayerCount = playerAuditRows.filter(
     (player) => player.status === "Non lié"
   ).length;
@@ -547,7 +593,8 @@ export default function AdminPage() {
       logs.push({
         date: "Initialisation",
         title: "Aucun dataset actif",
-        description: "Importe un fichier Excel pour activer les analyses administrateur.",
+        description:
+          "Importe un fichier Excel pour activer les analyses administrateur.",
         tone: "amber",
       });
     }
@@ -677,10 +724,7 @@ export default function AdminPage() {
       );
 
       if (summary.warnings?.length > 0) {
-        console.warn(
-          "Import Skyjo - warnings :",
-          summary.warnings
-        );
+        console.warn("Import Skyjo - warnings :", summary.warnings);
       }
 
       if (summary.ignoredResults?.length > 0) {
@@ -868,7 +912,9 @@ export default function AdminPage() {
     });
 
     downloadCsv(
-      `skyjo_anomalies_${issue.id}_${new Date().toISOString().slice(0, 10)}.csv`,
+      `skyjo_anomalies_${issue.id}_${new Date()
+        .toISOString()
+        .slice(0, 10)}.csv`,
       [header, ...rows]
     );
 
@@ -956,7 +1002,8 @@ export default function AdminPage() {
                 </Badge>
                 <Badge tone="blue">Source · SharePoint Excel</Badge>
                 <Badge tone={logStorageStatus === "ready" ? "emerald" : "amber"}>
-                  Logs {logStorageStatus === "ready" ? "persistés" : "fallback écran"}
+                  Logs{" "}
+                  {logStorageStatus === "ready" ? "persistés" : "fallback écran"}
                 </Badge>
                 {qualityIssues.length > 0 && (
                   <Badge tone="red">{qualityIssues.length} alertes qualité</Badge>
@@ -979,12 +1026,42 @@ export default function AdminPage() {
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-          <AdminKpi label="Parties" value={datasetSummary.games} subtitle="Dataset actif" tone="blue" />
-          <AdminKpi label="Joueurs" value={datasetSummary.players} subtitle="Profils importés" tone="emerald" />
-          <AdminKpi label="Doublons joueurs" value={duplicatePlayerCount} subtitle="À surveiller" tone={duplicatePlayerCount > 0 ? "amber" : "emerald"} />
-          <AdminKpi label="Non liés email" value={unlinkedPlayerCount} subtitle="Comptes à rattacher" tone={unlinkedPlayerCount > 0 ? "violet" : "emerald"} />
-          <AdminKpi label="Contrôle qualité" value={qualityIssues.length} subtitle={qualityIssues.length > 0 ? "À vérifier" : "RAS"} tone={qualityIssues.length > 0 ? "amber" : "emerald"} />
-          <AdminKpi label="Statut" value={mappedData ? "OK" : "Vide"} subtitle={mappedData ? "Mapping prêt" : "Import requis"} tone={mappedData ? "emerald" : "amber"} />
+          <AdminKpi
+            label="Parties"
+            value={datasetSummary.games}
+            subtitle="Dataset actif"
+            tone="blue"
+          />
+          <AdminKpi
+            label="Joueurs"
+            value={datasetSummary.players}
+            subtitle="Profils importés"
+            tone="emerald"
+          />
+          <AdminKpi
+            label="Doublons joueurs"
+            value={duplicatePlayerCount}
+            subtitle="À surveiller"
+            tone={duplicatePlayerCount > 0 ? "amber" : "emerald"}
+          />
+          <AdminKpi
+            label="Non liés email"
+            value={unlinkedPlayerCount}
+            subtitle="Comptes à rattacher"
+            tone={unlinkedPlayerCount > 0 ? "violet" : "emerald"}
+          />
+          <AdminKpi
+            label="Contrôle qualité"
+            value={qualityIssues.length}
+            subtitle={qualityIssues.length > 0 ? "À vérifier" : "RAS"}
+            tone={qualityIssues.length > 0 ? "amber" : "emerald"}
+          />
+          <AdminKpi
+            label="Statut"
+            value={mappedData ? "OK" : "Vide"}
+            subtitle={mappedData ? "Mapping prêt" : "Import requis"}
+            tone={mappedData ? "emerald" : "amber"}
+          />
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
@@ -1081,7 +1158,10 @@ export default function AdminPage() {
             )}
 
             {importSuccess && (
-              <AlertBox tone="emerald" title={pendingImport ? "Fichier prêt" : "Import réussi"}>
+              <AlertBox
+                tone="emerald"
+                title={pendingImport ? "Fichier prêt" : "Import réussi"}
+              >
                 {importSuccess}
               </AlertBox>
             )}
@@ -1099,9 +1179,21 @@ export default function AdminPage() {
 
             {rawExcelData && (
               <div className="mt-6 grid gap-4 md:grid-cols-3">
-                <RawCountCard label="T_JOUEURS" value={rawExcelData.joueurs.length} tone="emerald" />
-                <RawCountCard label="T_PARTIES" value={rawExcelData.parties.length} tone="blue" />
-                <RawCountCard label="T_RESULTATS" value={rawExcelData.resultats.length} tone="amber" />
+                <RawCountCard
+                  label="T_JOUEURS"
+                  value={rawExcelData.joueurs.length}
+                  tone="emerald"
+                />
+                <RawCountCard
+                  label="T_PARTIES"
+                  value={rawExcelData.parties.length}
+                  tone="blue"
+                />
+                <RawCountCard
+                  label="T_RESULTATS"
+                  value={rawExcelData.resultats.length}
+                  tone="amber"
+                />
               </div>
             )}
           </article>
@@ -1127,12 +1219,25 @@ export default function AdminPage() {
             </div>
 
             <div className="mt-6 space-y-3">
-              <MetadataCard label="Fichier" value={importMetadata.fileName ?? "Aucun fichier chargé"} />
-              <MetadataCard label="Chargé le" value={importMetadata.updatedAt ? formatDateTime(importMetadata.updatedAt) : "—"} />
-              <MetadataCard label="Chargé par" value={importMetadata.updatedByEmail ?? "—"} />
+              <MetadataCard
+                label="Fichier"
+                value={importMetadata.fileName ?? "Aucun fichier chargé"}
+              />
+              <MetadataCard
+                label="Chargé le"
+                value={
+                  importMetadata.updatedAt
+                    ? formatDateTime(importMetadata.updatedAt)
+                    : "—"
+                }
+              />
+              <MetadataCard
+                label="Chargé par"
+                value={importMetadata.updatedByEmail ?? "—"}
+              />
             </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
               <button
                 type="button"
                 onClick={handleRefreshDataset}
@@ -1150,10 +1255,21 @@ export default function AdminPage() {
               >
                 Télécharger backup
               </button>
+
+              <button
+                type="button"
+                onClick={testNotifications}
+                disabled={testingNotifications}
+                className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-cyan-400/10 disabled:hover:text-cyan-100"
+              >
+                {testingNotifications ? "Test..." : "Tester notifications"}
+              </button>
             </div>
 
             {refreshMessage && (
-              <RefreshFeedback tone={refreshTone}>{refreshMessage}</RefreshFeedback>
+              <RefreshFeedback tone={refreshTone}>
+                {refreshMessage}
+              </RefreshFeedback>
             )}
           </article>
         </section>
@@ -1305,7 +1421,8 @@ export default function AdminPage() {
               <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
                 {filteredPlayerAuditRows.length - 12} joueur
                 {filteredPlayerAuditRows.length - 12 > 1 ? "s" : ""} non affiché
-                {filteredPlayerAuditRows.length - 12 > 1 ? "s" : ""}. Utilise l’export CSV pour la liste complète.
+                {filteredPlayerAuditRows.length - 12 > 1 ? "s" : ""}. Utilise
+                l’export CSV pour la liste complète.
               </div>
             )}
           </div>
@@ -1339,7 +1456,9 @@ export default function AdminPage() {
             {logStorageStatus === "missing" && (
               <div className="mt-5 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm leading-6 text-amber-100/80">
                 Les logs sont affichés et exportables, mais pas encore persistés
-                en base. Crée la table <span className="font-semibold">skyjo_admin_logs</span> pour activer la persistance.
+                en base. Crée la table{" "}
+                <span className="font-semibold">skyjo_admin_logs</span> pour
+                activer la persistance.
               </div>
             )}
 
@@ -1452,7 +1571,9 @@ function PendingImportPanel({
           disabled={confirmingImport}
           className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {confirmingImport ? "Remplacement en cours..." : "Confirmer et remplacer"}
+          {confirmingImport
+            ? "Remplacement en cours..."
+            : "Confirmer et remplacer"}
         </button>
 
         <button
@@ -1468,10 +1589,18 @@ function PendingImportPanel({
   );
 }
 
-function MiniImportStat({ label, value }: { label: string; value: string | number }) {
+function MiniImportStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">{label}</p>
+      <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+        {label}
+      </p>
       <p className="mt-2 text-xl font-semibold text-white">{value}</p>
     </div>
   );
@@ -1587,7 +1716,8 @@ function PlayerEditDrawer({
 }) {
   const [displayName, setDisplayName] = useState(player.name);
   const [email, setEmail] = useState(player.email === "—" ? "" : player.email);
-  const [status, setStatus] = useState<PlayerOverrideForm["status"]>(player.status);
+  const [status, setStatus] =
+    useState<PlayerOverrideForm["status"]>(player.status);
   const [role, setRole] = useState<PlayerOverrideForm["role"]>(player.role);
 
   useEffect(() => {
@@ -1661,7 +1791,9 @@ function PlayerEditDrawer({
               <div className="mt-2">
                 <AdminSelect
                   value={status}
-                  onChange={(value) => setStatus(value as PlayerOverrideForm["status"])}
+                  onChange={(value) =>
+                    setStatus(value as PlayerOverrideForm["status"])
+                  }
                   options={[
                     { value: "Actif", label: "Actif" },
                     { value: "Inactif", label: "Inactif" },
@@ -1678,7 +1810,9 @@ function PlayerEditDrawer({
               <div className="mt-2">
                 <AdminSelect
                   value={role}
-                  onChange={(value) => setRole(value as PlayerOverrideForm["role"])}
+                  onChange={(value) =>
+                    setRole(value as PlayerOverrideForm["role"])
+                  }
                   options={[
                     { value: "Joueur", label: "Joueur" },
                     { value: "Admin", label: "Admin" },
@@ -1700,7 +1834,9 @@ function PlayerEditDrawer({
           </div>
 
           {message && (
-            <RefreshFeedback tone={message.includes("impossible") ? "red" : "emerald"}>
+            <RefreshFeedback
+              tone={message.includes("impossible") ? "red" : "emerald"}
+            >
               {message}
             </RefreshFeedback>
           )}
@@ -1767,7 +1903,9 @@ function QualityIssueCard({
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold">{issue.title}</p>
-          <p className="mt-1 text-sm leading-6 opacity-75">{issue.description}</p>
+          <p className="mt-1 text-sm leading-6 opacity-75">
+            {issue.description}
+          </p>
           <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] opacity-55">
             {active ? "Détail ouvert" : "Cliquer pour analyser"}
           </p>
@@ -1853,7 +1991,9 @@ function IssueGameCard({ detail }: { detail: QualityIssueDetail }) {
     <article className="rounded-2xl border border-white/10 bg-black/20 p-4">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div>
-          <p className="text-sm font-semibold text-white">Partie {detail.gameId}</p>
+          <p className="text-sm font-semibold text-white">
+            Partie {detail.gameId}
+          </p>
           <p className="mt-1 text-xs text-zinc-500">
             {detail.gameDate} · {detail.location} · {detail.playersCount} joueurs
           </p>
@@ -1878,7 +2018,9 @@ function IssueGameCard({ detail }: { detail: QualityIssueDetail }) {
               key={`${row.player}-${index}`}
               className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-sm sm:grid-cols-[1.2fr_0.7fr_0.7fr_1fr]"
             >
-              <span className="truncate font-semibold text-white">{row.player}</span>
+              <span className="truncate font-semibold text-white">
+                {row.player}
+              </span>
               <span className="text-zinc-400">Score {row.score}</span>
               <span className="text-zinc-400">Pos. {row.position}</span>
               <span className="text-amber-200">{row.status}</span>
@@ -1991,7 +2133,9 @@ function StatusPill({
   }[tone];
 
   return (
-    <span className={`shrink-0 rounded-full border px-4 py-2 text-xs font-medium ${className}`}>
+    <span
+      className={`shrink-0 rounded-full border px-4 py-2 text-xs font-medium ${className}`}
+    >
       {label}
     </span>
   );
@@ -2008,11 +2152,15 @@ function AdminLogCard({ log }: { log: AdminLog }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
       <div className="flex gap-3">
-        <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${dotClass}`} />
+        <span
+          className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${dotClass}`}
+        />
         <div className="min-w-0">
           <p className="text-xs text-zinc-500">{log.date}</p>
           <p className="mt-1 font-semibold text-white">{log.title}</p>
-          <p className="mt-1 text-sm leading-6 text-zinc-400">{log.description}</p>
+          <p className="mt-1 text-sm leading-6 text-zinc-400">
+            {log.description}
+          </p>
         </div>
       </div>
     </div>
@@ -2066,7 +2214,9 @@ function Badge({
   }[tone];
 
   return (
-    <div className={`max-w-full truncate rounded-full border px-4 py-2 text-xs font-medium ${className}`}>
+    <div
+      className={`max-w-full truncate rounded-full border px-4 py-2 text-xs font-medium ${className}`}
+    >
       {children}
     </div>
   );
@@ -2139,7 +2289,9 @@ function AdminSelect({
                   <span className="truncate">{option.label}</span>
 
                   {active && (
-                    <span className="ml-3 shrink-0 text-xs text-blue-300">✓</span>
+                    <span className="ml-3 shrink-0 text-xs text-blue-300">
+                      ✓
+                    </span>
                   )}
                 </button>
               );
@@ -2162,9 +2314,7 @@ function buildDatasetSummary(data: MappedSkyjoData | null) {
   }
 
   const seasons = new Set(
-    (data.games ?? [])
-      .map((game: any) => getGameSeason(game))
-      .filter(Boolean)
+    (data.games ?? []).map((game: any) => getGameSeason(game)).filter(Boolean)
   );
 
   return {
@@ -2176,182 +2326,64 @@ function buildDatasetSummary(data: MappedSkyjoData | null) {
 }
 
 function buildQualityIssues(data: MappedSkyjoData): QualityIssue[] {
+  const health = buildSkyjoDatasetHealth({
+    games: data.games ?? [],
+    players: data.players ?? [],
+  });
+
   const games = (data.games ?? []) as any[];
-  const issues: QualityIssue[] = [];
 
-  const missingDateDetails = games
-    .filter((game) => !getGameDateValue(game))
-    .map((game, index) =>
-      buildIssueDetail(
-        game,
-        "La partie n’a pas de date exploitable. Elle ne pourra pas être rattachée correctement à une saison.",
-        index
-      )
-    );
+  return health.issues.map((issue) => {
+    const details = issue.gameIds.map((gameId, index) => {
+      const game =
+        games.find((candidate) => {
+          const candidateId = String(
+            candidate.partieId ??
+              candidate.partie_id ??
+              candidate.id ??
+              candidate.PartieID ??
+              ""
+          );
 
-  const missingResultsDetails = games
-    .filter((game) => !Array.isArray(game.results) || game.results.length === 0)
-    .map((game, index) =>
-      buildIssueDetail(
-        game,
-        "La partie existe mais ne contient aucune ligne de résultat.",
-        index
-      )
-    );
+          return candidateId === String(gameId);
+        }) ?? null;
 
-  const duplicatePlayerDetails = games
-    .map((game, index) => {
-      const results = Array.isArray(game.results) ? game.results : [];
-      const names: string[] = results
-        .map((result: any) => getResultName(result))
-        .filter((name: string) => name.trim() !== "");
-
-      const duplicateNames = names.filter(
-        (name: string, nameIndex: number) => names.indexOf(name) !== nameIndex
-      );
-      const uniqueDuplicateNames = Array.from(new Set(duplicateNames));
-
-      if (uniqueDuplicateNames.length === 0) return null;
+      if (!game) {
+        return {
+          gameId: String(gameId),
+          gameDate: "Date inconnue",
+          location: "Lieu inconnu",
+          playersCount: "—",
+          description: issue.description,
+          rows: [],
+        };
+      }
 
       return buildIssueDetail(
         game,
-        `Joueur(s) dupliqué(s) dans cette partie : ${uniqueDuplicateNames.join(", ")}.`,
+        issue.description,
         index,
-        results.filter((result: any) =>
-          uniqueDuplicateNames.includes(getResultName(result))
-        )
+        Array.isArray(game.results) ? game.results : []
       );
-    })
-    .filter((detail): detail is QualityIssueDetail => Boolean(detail));
-
-  const missingScoreDetails = games
-    .map((game, index) => {
-      const results = Array.isArray(game.results) ? game.results : [];
-      const rows = results.filter(
-        (result: any) => !Number.isFinite(toNumber(result.score ?? result.Score))
-      );
-
-      if (rows.length === 0) return null;
-
-      return buildIssueDetail(
-        game,
-        `${rows.length} ligne(s) de résultat sans score exploitable.`,
-        index,
-        rows
-      );
-    })
-    .filter((detail): detail is QualityIssueDetail => Boolean(detail));
-
-  const missingPositionDetails = games
-    .map((game, index) => {
-      const results = Array.isArray(game.results) ? game.results : [];
-      const rows = results.filter(
-        (result: any) =>
-          !Number.isFinite(
-            toNumber(result.position ?? result.Position ?? result.rank ?? result.Rang)
-          )
-      );
-
-      if (rows.length === 0) return null;
-
-      return buildIssueDetail(
-        game,
-        `${rows.length} ligne(s) de résultat sans position exploitable.`,
-        index,
-        rows
-      );
-    })
-    .filter((detail): detail is QualityIssueDetail => Boolean(detail));
-
-  const severalWinnerDetails = games
-    .map((game, index) => {
-      const results = Array.isArray(game.results) ? game.results : [];
-      const rows = results.filter((result: any) => isWinnerResult(result));
-
-      if (rows.length <= 1) return null;
-
-      return buildIssueDetail(
-        game,
-        `${rows.length} joueurs sont marqués gagnants sur cette partie.`,
-        index,
-        rows
-      );
-    })
-    .filter((detail): detail is QualityIssueDetail => Boolean(detail));
-
-  if (missingDateDetails.length > 0) {
-    issues.push({
-      id: "missing-date",
-      severity: "critical",
-      title: "Parties sans date",
-      description: "Certaines parties ne pourront pas être rattachées à une saison.",
-      count: missingDateDetails.length,
-      details: missingDateDetails,
     });
-  }
 
-  if (missingResultsDetails.length > 0) {
-    issues.push({
-      id: "missing-results",
-      severity: "critical",
-      title: "Parties sans résultats",
-      description: "Des parties existent sans lignes de résultats associées.",
-      count: missingResultsDetails.length,
-      details: missingResultsDetails,
-    });
-  }
+    return {
+      id: issue.id,
+      severity: mapHealthSeverityToAdminSeverity(issue.severity),
+      title: issue.title,
+      description: issue.description,
+      count: issue.count,
+      details,
+    };
+  });
+}
 
-  if (duplicatePlayerDetails.length > 0) {
-    issues.push({
-      id: "duplicate-players",
-      severity: "warning",
-      title: "Joueurs dupliqués dans une partie",
-      description: "Un même joueur apparaît plusieurs fois dans certaines parties.",
-      count: duplicatePlayerDetails.length,
-      details: duplicatePlayerDetails,
-    });
-  }
-
-  if (missingScoreDetails.length > 0) {
-    issues.push({
-      id: "missing-score",
-      severity: "warning",
-      title: "Scores manquants",
-      description: "Certaines lignes de résultats n’ont pas de score exploitable.",
-      count: missingScoreDetails.reduce(
-        (sum, detail) => sum + detail.rows.length,
-        0
-      ),
-      details: missingScoreDetails,
-    });
-  }
-
-  if (missingPositionDetails.length > 0) {
-    issues.push({
-      id: "missing-position",
-      severity: "info",
-      title: "Positions manquantes",
-      description: "Certaines lignes n’ont pas de position. Le score sera utilisé en secours.",
-      count: missingPositionDetails.reduce(
-        (sum, detail) => sum + detail.rows.length,
-        0
-      ),
-      details: missingPositionDetails,
-    });
-  }
-
-  if (severalWinnerDetails.length > 0) {
-    issues.push({
-      id: "several-winners",
-      severity: "warning",
-      title: "Plusieurs gagnants explicites",
-      description: "Certaines parties contiennent plusieurs lignes marquées comme gagnantes.",
-      count: severalWinnerDetails.length,
-      details: severalWinnerDetails,
-    });
-  }
-
-  return issues;
+function mapHealthSeverityToAdminSeverity(
+  severity: "error" | "warning" | "info"
+): QualityIssue["severity"] {
+  if (severity === "error") return "critical";
+  if (severity === "warning") return "warning";
+  return "info";
 }
 
 function buildIssueDetail(
@@ -2749,9 +2781,7 @@ function formatDateTime(value: string) {
 function downloadCsv(fileName: string, rows: (string | number)[][]) {
   const csv = rows
     .map((row) =>
-      row
-        .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
-        .join(";")
+      row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(";")
     )
     .join("\r\n");
 
