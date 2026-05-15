@@ -144,8 +144,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: isAdmin } =
-      await clientSupabase.rpc("is_current_user_admin");
+    const { data: isAdmin } = await clientSupabase.rpc("is_current_user_admin");
 
     if (!isAdmin) {
       return NextResponse.json(
@@ -160,16 +159,12 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as ImportBody;
 
-    const adminSupabase = createClient(
-      supabaseUrl,
-      serviceRoleKey,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-      }
-    );
+    const adminSupabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
 
     const joueurs = body.rawData.joueurs ?? [];
     const parties = body.rawData.parties ?? [];
@@ -201,58 +196,24 @@ export async function POST(request: Request) {
     const playersPayload = joueurs
       .map((row) => ({
         joueur_id: asText(
-          getValue(row, [
-            "JoueurID",
-            "joueur_id",
-            "joueurId",
-          ])
+          getValue(row, ["JoueurID", "joueur_id", "joueurId"])
         ),
 
-        display_name: asText(
-          getValue(row, [
-            "Nom",
-            "nom",
-            "display_name",
-          ])
-        ),
+        display_name: asText(getValue(row, ["Nom", "nom", "display_name"])),
 
         team_service:
-          asText(
-            getValue(row, [
-              "Equipe / Service",
-              "Equipe",
-              "Service",
-            ])
-          ) || null,
+          asText(getValue(row, ["Equipe / Service", "Equipe", "Service"])) ||
+          null,
 
-        arrived_at: normalizeDate(
-          getValue(row, [
-            "DateArrivee",
-            "DateArrivée",
-          ])
-        ),
+        arrived_at: normalizeDate(getValue(row, ["DateArrivee", "DateArrivée"])),
 
-        email:
-          asText(
-            getValue(row, [
-              "Email",
-              "email",
-              "Mail",
-            ])
-          ) || null,
+        email: asText(getValue(row, ["Email", "email", "Mail"])) || null,
 
         is_active: true,
       }))
-      .filter(
-        (row) =>
-          row.joueur_id &&
-          row.display_name
-      );
+      .filter((row) => row.joueur_id && row.display_name);
 
-    const {
-      data: insertedPlayers,
-      error: playersError,
-    } = await adminSupabase
+    const { data: insertedPlayers, error: playersError } = await adminSupabase
       .from("skyjo_players")
       .insert(playersPayload)
       .select("id, joueur_id");
@@ -268,66 +229,34 @@ export async function POST(request: Request) {
     const gamesPayload = parties
       .map((row) => ({
         partie_id: asText(
-          getValue(row, [
-            "PartieID",
-            "partie_id",
-            "partieId",
-          ])
+          getValue(row, ["PartieID", "partie_id", "partieId"])
         ),
 
-        played_at: normalizeDate(
-          getValue(row, [
-            "DatePartie",
-            "datePartie",
-            "Date",
-          ])
-        ),
+        played_at: normalizeDate(getValue(row, ["DatePartie", "datePartie", "Date"])),
 
-        location:
-          asText(
-            getValue(row, [
-              "Lieu",
-              "location",
-            ])
-          ) || null,
+        location: asText(getValue(row, ["Lieu", "location"])) || null,
 
         expected_players_count: asNumber(
-          getValue(row, [
-            "NbJoueurs",
-            "NombreJoueurs",
-          ])
+          getValue(row, ["NbJoueurs", "NombreJoueurs"])
         ),
       }))
-      .filter(
-        (row) =>
-          row.partie_id &&
-          row.played_at
-      );
+      .filter((row) => row.partie_id && row.played_at);
 
-    const {
-      data: insertedGames,
-      error: gamesError,
-    } = await adminSupabase
+    const { data: insertedGames, error: gamesError } = await adminSupabase
       .from("skyjo_games")
       .insert(gamesPayload)
-      .select("id, partie_id");
+      .select("id, partie_id, created_at");
 
     if (gamesError) {
       throw gamesError;
     }
 
     const playerMap = new Map(
-      (insertedPlayers ?? []).map((player) => [
-        player.joueur_id,
-        player.id,
-      ])
+      (insertedPlayers ?? []).map((player) => [player.joueur_id, player.id])
     );
 
     const gameMap = new Map(
-      (insertedGames ?? []).map((game) => [
-        game.partie_id,
-        game.id,
-      ])
+      (insertedGames ?? []).map((game) => [game.partie_id, game.id])
     );
 
     /*
@@ -339,25 +268,12 @@ export async function POST(request: Request) {
     const resultsPayload = resultats
       .map((row, index) => {
         const resultatIdRaw = asText(
-          getValue(row, [
-            "ResultatID",
-            "resultat_id",
-          ])
+          getValue(row, ["ResultatID", "resultat_id"])
         );
 
-        const partieId = asText(
-          getValue(row, [
-            "PartieID",
-            "partie_id",
-          ])
-        );
+        const partieId = asText(getValue(row, ["PartieID", "partie_id"]));
 
-        const joueurId = asText(
-          getValue(row, [
-            "JoueurID",
-            "joueur_id",
-          ])
-        );
+        const joueurId = asText(getValue(row, ["JoueurID", "joueur_id"]));
 
         const gameId = gameMap.get(partieId);
         const playerId = playerMap.get(joueurId);
@@ -381,47 +297,27 @@ export async function POST(request: Request) {
 
           player_id: playerId,
 
-          score:
-            asNumber(
-              getValue(row, [
-                "Score",
-                "score",
-              ])
-            ) ?? 0,
+          score: asNumber(getValue(row, ["Score", "score"])) ?? 0,
 
           position: asNumber(
-            getValue(row, [
-              "Position",
-              "position",
-              "Classement",
-            ])
+            getValue(row, ["Position", "position", "Classement"])
           ),
 
           source_created_at: null,
 
           source_created_by: null,
 
-          hash_resultat:
-            asText(
-              getValue(row, [
-                "HashResultat",
-              ])
-            ) || null,
+          hash_resultat: asText(getValue(row, ["HashResultat"])) || null,
 
           hash_last_audit:
-            asText(
-              getValue(row, [
-                "HashDernierAudit",
-              ])
-            ) || null,
+            asText(getValue(row, ["HashDernierAudit"])) || null,
         };
       })
       .filter(Boolean);
 
-    const { error: resultsError } =
-      await adminSupabase
-        .from("skyjo_game_results")
-        .insert(resultsPayload);
+    const { error: resultsError } = await adminSupabase
+      .from("skyjo_game_results")
+      .insert(resultsPayload);
 
     if (resultsError) {
       throw resultsError;
@@ -431,17 +327,65 @@ export async function POST(request: Request) {
      * DATASET JSON LEGACY
      */
 
-    await adminSupabase
-      .from("skyjo_dataset")
-      .upsert({
-        id: "active",
-        data: body.appData,
-        updated_at: body.updatedAt,
-        file_name: body.fileName,
-        updated_by_email:
-          body.updatedByEmail ??
-          user.email,
-      });
+    await adminSupabase.from("skyjo_dataset").upsert({
+      id: "active",
+      data: body.appData,
+      updated_at: body.updatedAt,
+      file_name: body.fileName,
+      updated_by_email: body.updatedByEmail ?? user.email,
+    });
+
+    /*
+     * NOTIFICATION BATCH
+     *
+     * Important :
+     * - L'import Excel remplace tout le dataset relationnel.
+     * - On crée donc un batch uniquement s'il y a au moins une partie importée.
+     * - Le cron /api/notifications/process se chargera ensuite d'attendre
+     *   SILENCE_DELAY_MINUTES avant d'envoyer le mail.
+     */
+
+    if ((insertedGames?.length ?? 0) > 0) {
+      const now = new Date().toISOString();
+
+      const { data: existingBatch, error: existingBatchError } =
+        await adminSupabase
+          .from("skyjo_notification_batches")
+          .select("id")
+          .eq("status", "open")
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+      if (existingBatchError) {
+        throw existingBatchError;
+      }
+
+      if (existingBatch) {
+        const { error: updateBatchError } = await adminSupabase
+          .from("skyjo_notification_batches")
+          .update({
+            last_game_added_at: now,
+          })
+          .eq("id", existingBatch.id);
+
+        if (updateBatchError) {
+          throw updateBatchError;
+        }
+      } else {
+        const { error: insertBatchError } = await adminSupabase
+          .from("skyjo_notification_batches")
+          .insert({
+            status: "open",
+            first_game_added_at: now,
+            last_game_added_at: now,
+          });
+
+        if (insertBatchError) {
+          throw insertBatchError;
+        }
+      }
+    }
 
     return NextResponse.json({
       ok: true,
@@ -450,18 +394,20 @@ export async function POST(request: Request) {
         players: playersPayload.length,
         games: gamesPayload.length,
         results: resultsPayload.length,
+        notificationBatch:
+          (insertedGames?.length ?? 0) > 0 ? "created_or_updated" : "skipped",
       },
     });
   } catch (error) {
     console.error("IMPORT SKYJO ERROR =", error);
 
     return NextResponse.json(
-    {
+      {
         error: JSON.stringify(error, null, 2),
-    },
-    {
+      },
+      {
         status: 500,
-    }
+      }
     );
   }
 }
